@@ -41,11 +41,17 @@ julia --startup-file=no scripts/setup_env.jl /path/to/mujoco-env
 JULIA_LOAD_PATH='@:@stdlib' julia --startup-file=no --project=/path/to/mujoco-env
 ```
 
-The setup explicitly installs the exact SpaceAGORA commit recorded in
-`Project.toml`, then develops this companion checkout and declares the direct
+The setup uses command-line Git to check out the exact SpaceAGORA commit recorded
+in `Project.toml` under the environment's `sources/SpaceAGORA-<SHA>` directory,
+then develops that core checkout and this companion and declares the direct
 imports needed by its tests and benchmark driver. It creates its own manifest;
 it never copies a parent manifest or calls a HYPR installer. No native GRAM data
-or parent repository checkout is needed. Dependency installation and Julia
+or parent repository checkout is needed. Git is required; submodules are not
+initialized and LFS files remain pointers. The managed core checkout is verified
+before package installation. Repeat setup reuses it only when its recorded
+source, HEAD, package identity and clean state match; a modified or mismatched
+checkout is refused without resetting it. Keep the environment and its `sources`
+directory together while using the installation. Dependency installation and Julia
 precompilation occur only when you run this setup, not when importing the adapter.
 The lazy MuJoCo artifact downloads when a native operation first needs it; its
 archive and unpacked tree are verified against `Artifacts.toml`.
@@ -99,6 +105,7 @@ Bounded checks without a simulation or native library:
 
 ```sh
 julia --startup-file=no test/installation_plan_tests.jl
+julia --startup-file=no test/source_acquisition_tests.jl
 python3 -B -m unittest discover -s benchmarks/basilisk_mujoco_xval -p test_harness.py
 ```
 
