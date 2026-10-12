@@ -1,7 +1,7 @@
 """Bounded harness checks; no Julia, Basilisk, MuJoCo, SSH or benchmark runs.
 
 Run with a Python environment containing NumPy and tomllib/tomli:
-    python3 -m unittest discover -s benchmarks/studies/basilisk_mujoco_xval -p test_harness.py
+    python3 -m unittest discover -s benchmarks/basilisk_mujoco_xval -p test_harness.py
 """
 import csv
 import os

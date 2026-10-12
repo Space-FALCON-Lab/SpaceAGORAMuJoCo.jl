@@ -15,4 +15,4 @@ of Basilisk 2.12 (`examples/mujoco/`).
     OR PERFORMANCE OF THIS SOFTWARE.
 
 The proximity-scene frame convention follows the mjorbit project (Apache-2.0), as already acknowledged in
-`packages/SpaceAGORAMuJoCo`; no mjorbit file is copied into this harness.
+`SpaceAGORAMuJoCo.jl`; no mjorbit file is copied into this harness.

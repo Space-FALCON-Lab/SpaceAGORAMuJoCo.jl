@@ -4,7 +4,9 @@ using Test
 using SpaceAGORAMuJoCo
 
 const _mujoco_ok = try
-    SpaceAGORAMuJoCo.Binding.version() == 3_011_000
+    version = SpaceAGORAMuJoCo.Binding.version()
+    version == 3_011_000 || error("Expected MuJoCo 3.11.0, received native version $version")
+    true
 catch err
     # CI sets SPACEAGORA_MUJOCO_REQUIRED=1 so a failed artifact download fails the job instead of skipping.
     get(ENV, "SPACEAGORA_MUJOCO_REQUIRED", "") == "1" && rethrow()

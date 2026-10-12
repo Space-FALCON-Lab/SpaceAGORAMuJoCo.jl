@@ -16,12 +16,13 @@ function engine_config(effectors, tend, data_rate; scs=nothing, scene=nothing, o
         orientation_sim=orient, keplerian=true, verbose=false, results=false, results_directory=mktempdir(),
         solver_config=SM.SolverConfig(solver_mode=solver))
     props = scene === nothing ? () : (ProximitySceneDynamics(scene, owned...),)
-    return SM.SimConfig._with_configuration(base;
+    configured = fixture_configuration(base;
         integration_tolerances=tol,
         mission_configuration=SM.MissionConfiguration(
             mission_type=base.mission_configuration.mission_type, keplerian=true, number_of_orbits=1,
             mission_time=tend, orientation_sim=orient, num_steps_to_save=100000, data_rate=data_rate),
-        dynamics_model=SM.DynamicsModel(scs, effectors), external_propagators=props, extra...)
+        dynamics_model=SM.DynamicsModel(scs, effectors), extra...)
+    return EP.with_external_propagators(configured, get(extra, :external_propagators, props))
 end
 run_table(cfg; kwargs...) = SpaceAGORA.run_simulation(cfg; return_results=true, kwargs...).table
 # A do-nothing periodic callback: its tstops make the solver land exactly on every save time, so saved values are
@@ -49,7 +50,6 @@ tick_every(period) = (SM.SimulationCallbacks.PeriodicCallback(_ -> nothing, peri
     @test d.dr < TOL_POSITION_M && d.dv < TOL_VELOCITY_MPS && d.drel < TOL_RELATIVE_POSITION_M
 end
 
-const SE = SpaceAGORA.SimulationEngine
 const MU_EARTH = MU
 
 @testset "shadow entries between syncs follow the chief acceleration within a bounded error" begin
@@ -107,9 +107,9 @@ end
     @test ok                                   # exactly the scene state at the tick: the sync callback runs first
     # a rate that is not a multiple of the scene step is refused
     bad = engine_config(effectors, tend, 5.0; scene, extra=(; navigation_model=SM.NavigationModel(navigation_effectors=(probe,), navigation_rates=[0.07])))
-    @test_throws ArgumentError SE._validate_external_propagators!(bad, :dp8)
+    @test_throws ArgumentError EP.validate_external_propagators(bad, :dp8)
     good = engine_config(effectors, tend, 5.0; scene, extra=(; navigation_model=SM.NavigationModel(navigation_effectors=(probe,), navigation_rates=[0.1])))
-    @test SE._validate_external_propagators!(good, :dp8) === nothing
+    @test EP.validate_external_propagators(good, :dp8) === nothing
 end
 
 # --- attitude convention ------------------------------------------------------------------------------
@@ -384,8 +384,8 @@ end
     # The message of the ArgumentError `f` throws (nothing if it throws something else or nothing at all).
     arg_error(f) = try; f(); nothing; catch e; e isa ArgumentError ? sprint(showerror, e) : nothing; end
     refuses(f, rx) = (m = arg_error(f); m !== nothing && occursin(rx, m))
-    refused(c, rx; mode=:dp8) = refuses(() -> SE._validate_external_propagators!(c, mode), rx)
-    passes(c; mode=:dp8) = SE._validate_external_propagators!(c, mode) === nothing
+    refused(c, rx; mode=:dp8) = refuses(() -> EP.validate_external_propagators(c, mode), rx)
+    passes(c; mode=:dp8) = EP.validate_external_propagators(c, mode) === nothing
     @test passes(cfg())                                         # the baseline configuration passes
     @test SpaceAGORA.run_simulation(cfg(); isolate_state=false) === nothing
 
@@ -433,10 +433,10 @@ end
 
     # ownership and construction
     two_scene = ProximitySceneDynamics(scene, 1 => "chaser", 2 => "target")
-    bad_index(i) = SM.SimConfig._with_configuration(cfg(); external_propagators=(ProximitySceneDynamics(scene, i => "chaser", 2 => "target"),))
+    bad_index(i) = fixture_configuration(cfg(); external_propagators=(ProximitySceneDynamics(scene, i => "chaser", 2 => "target"),))
     @test refused(bad_index(3), r"owns spacecraft")                                                         # no such spacecraft
-    @test refused(SM.SimConfig._with_configuration(cfg(); external_propagators=(two_scene, two_scene)), r"more than one")   # owned twice
-    @test refused(SM.SimConfig._with_configuration(cfg(); external_propagators=(:not_a_propagator,)), r"AbstractExternalPropagator")
+    @test refused(fixture_configuration(cfg(); external_propagators=(two_scene, two_scene)), r"more than one")   # owned twice
+    @test refused(fixture_configuration(cfg(); external_propagators=(:not_a_propagator,)), r"AbstractExternalPropagator")
     @test_throws ArgumentError ProximitySceneDynamics(scene, 1 => "chaser")             # the target has no spacecraft
     @test_throws ArgumentError ProximitySceneDynamics(scene, 1 => "chaser", 2 => "nope")
     @test_throws ArgumentError ProximitySceneDynamics(scene, 1 => "chaser", 1 => "target")
@@ -444,7 +444,7 @@ end
     @test_throws ArgumentError ProximitySceneDynamics(scene)
     # mass consistency, when requested
     heavy = SM.SpacecraftModel[rigid_sc(21.0, (1.0, 0.8, 0.6), R1, V1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2)]
-    with_mass(rtol, scs) = SM.SimConfig._with_configuration(cfg(; scs); external_propagators=(ProximitySceneDynamics(scene, 1 => "chaser", 2 => "target"; mass_rtol=rtol),))
+    with_mass(rtol, scs) = fixture_configuration(cfg(; scs); external_propagators=(ProximitySceneDynamics(scene, 1 => "chaser", 2 => "target"; mass_rtol=rtol),))
     @test refused(with_mass(1e-3, heavy), r"mass")
     @test passes(with_mass(0.1, heavy))
     @test passes(with_mass(1e-9, SM.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2)]))
