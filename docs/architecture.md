@@ -108,4 +108,9 @@ every spacecraft). Impact detection is not applied to shadow entries. Process-po
 Known limits. Owned bodies feel gravity only (thrusters, wheels, joint motors and environment loads are Stages 3
 and 4). The adaptive solver's first step and error norm see the whole state vector, so an ordinary spacecraft's
 results change at round-off level (about 1e-8 m) when other spacecraft, owned or not, share the run.
-Measured with `mj_step1`/`mj_step2`, `integrator=:rk4` gave the same first-order attitude errors as `:implicitfast` (2.11 rad and 2.22 rad at dt = 0.04 on an intermediate-axis tumbling case, 0.07 rad with implicitfast on a stable spin), so it is not a higher-order option here; this is consistent with the split step not running RK4 stages, which was not verified in the MuJoCo source.
+Historical measurements, made before the `:rk4` refusal was added, found the same first-order attitude errors
+with `integrator=:rk4` and `:implicitfast` (2.11 rad and 2.22 rad at dt = 0.04 on an intermediate-axis tumbling
+case, 0.07 rad with implicitfast on a stable spin). The current constructor rejects `:rk4`: the
+`mj_step1`/`mj_step2` path falls back to Euler for RK4 models. Supported choices are `:implicitfast`,
+`:implicit` and `:euler`; none adds higher-order coupling to this split step. These numbers are historical,
+not new measurements from the repository extraction.

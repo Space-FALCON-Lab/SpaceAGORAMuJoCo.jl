@@ -93,8 +93,10 @@ so the venv `bin` must be on PATH). Build commands, about 8 minutes at 10 parall
     PATH=<basilisk>/.venv/bin:$PATH CONAN_HOME=~/xval_mujoco/conan_home CMAKE_BUILD_PARALLEL_LEVEL=10 \
       python conanfile.py --mujoco True --vizInterface False --opNav False --buildTesting False
 
-SpaceAGORA environment: `julia scripts/setup_env.jl /path/to/mjxval_env`.
-Then (sf3 must be idle; harness synced with `rsync -a --exclude results ./ sf3:xval_mujoco/harness/`):
+On the local machine, create the SpaceAGORA environment from the companion repository root:
+`julia scripts/setup_env.jl /path/to/mjxval_env`.
+Then return to `benchmarks/basilisk_mujoco_xval/` for the commands below (sf3 must be idle;
+harness synced with `rsync -a --exclude results ./ sf3:xval_mujoco/harness/`):
 
     sh run_case.sh caseA 30  /path/to/mjxval_env
     sh run_case.sh caseA 300 /path/to/mjxval_env
@@ -105,7 +107,8 @@ Results land in `results/<hostname>/<case>_T<s>/` (gitignored). Wall times are n
 
 The wrapper prints the remote log after the command finishes and stops on a nonzero remote status before copying
 results or running the local side. The comparator requires finite, matching sample times within and across ladders
-(absolute tolerance 1e-9 s). Bounded guard regressions, without native or remote workloads:
+(absolute tolerance 1e-9 s). From the companion repository root, run the bounded guard regressions
+without native or remote workloads:
 
     python3 -m unittest discover -s benchmarks/basilisk_mujoco_xval -p test_harness.py
 
