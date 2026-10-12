@@ -8,6 +8,18 @@ using .CompanionInstallation
     project = TOML.parsefile(joinpath(package, "Project.toml"))
     @test project["uuid"] == "a46e04e1-adb7-43c3-a03b-26575bf4fb67"
     @test project["compat"]["SpaceAGORA"] == "0.2"  # outer family only; the exact pin and contract are required
+    @testset "declared standard-library identities" begin
+        # Read this Julia installation's identifiers, rather than maintaining a
+        # second handwritten UUID table that could repeat a metadata typo.
+        stdlibs = Dict(name => string(uuid) for (uuid, (name, _)) in CompanionInstallation.Pkg.Types.stdlibs())
+        @test stdlibs["Test"] == string(Base.PkgId(Test).uuid)
+        for section in ("deps", "extras"), (name, uuid) in sort!(collect(project[section]))
+            haskey(stdlibs, name) || continue
+            @testset "$section.$name" begin
+                @test uuid == stdlibs[name]
+            end
+        end
+    end
     mktempdir() do directory
         env = joinpath(directory, "environment")
         default = CompanionInstallation.installation_plan(env; core_path="", core_revision="")
