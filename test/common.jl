@@ -6,6 +6,15 @@ import SpaceAGORA
 using SpaceAGORA.TelemetryVerification: make_example_config
 
 const SM = SpaceAGORA.SimulationModel
+const EP = SpaceAGORA.ExternalPropagationServices
+
+# Fixture-only reconstruction using the public configuration constructor. Preserve
+# every field/reference and infer model parameters again, as in the original tests.
+function fixture_configuration(args; overrides...)
+    names = fieldnames(typeof(args))
+    fields = NamedTuple{names}(map(name -> getfield(args, name), names))
+    return SpaceAGORA.SimulationConfiguration(; merge(fields, (; overrides...))...)
+end
 const MU = 3.986004418e14
 
 # Two free rigid boxes, body frames at their centers of mass, no contact, no joints.
@@ -64,7 +73,7 @@ function engine_reference(effectors, tend, data_rate)
         dynamic_effectors=effectors, density_model=SM.NoAtmosphereModel(), ephemerides_model=EPH,
         orientation_sim=false, keplerian=true, verbose=false, results=false, results_directory=mktempdir(),
         solver_config=SM.SolverConfig(solver_mode=:dp8))
-    args = SM.SimConfig._with_configuration(base;
+    args = fixture_configuration(base;
         integration_tolerances=tol,
         mission_configuration=SM.MissionConfiguration(
             mission_type=base.mission_configuration.mission_type, keplerian=true, number_of_orbits=1,

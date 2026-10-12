@@ -10,6 +10,18 @@ scene inside `run_simulation` through [`ProximitySceneDynamics`](@ref).
 """
 module SpaceAGORAMuJoCo
 
+import SpaceAGORA
+isdefined(SpaceAGORA, :ExternalPropagationServices) || throw(ArgumentError(
+    "This SpaceAGORA revision has no ExternalPropagationServices contract. Install the core revision pinned by SpaceAGORAMuJoCo/scripts/setup_env.jl."))
+const EP = SpaceAGORA.ExternalPropagationServices
+const CORE_CONTRACT_VERSION = v"1.0.0"
+EP.require_version(CORE_CONTRACT_VERSION)
+
+# Recheck when loading a precompiled companion against a different core checkout.
+function __init__()
+    EP.require_version(CORE_CONTRACT_VERSION)
+end
+
 include("binding.jl")
 include("proximity_scene.jl")
 include("engine_coupling.jl")

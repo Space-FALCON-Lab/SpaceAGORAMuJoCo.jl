@@ -11,10 +11,6 @@
 
 using LinearAlgebra
 using StaticArrays
-import SpaceAGORA
-
-const SM = SpaceAGORA.SimulationModel
-const SE = SpaceAGORA.SimulationEngine
 const V3 = SVector{3, Float64}
 
 # --- attitude convention --------------------------------------------------------------------------------
@@ -136,7 +132,7 @@ end
 
 function _check_effectors(effectors::Tuple, planet_rotation)
     isempty(effectors) && throw(ArgumentError("gravity_effectors is empty"))
-    all(e -> SM.gravity_backbone_structure(e) === :position_only_static_gravity, effectors) || throw(ArgumentError(
+    all(e -> SpaceAGORA.gravity_backbone_structure(e) === :position_only_static_gravity, effectors) || throw(ArgumentError(
         "every gravity effector must declare gravity_backbone_structure == :position_only_static_gravity"))
     _needs_frame(effectors) && planet_rotation === nothing && throw(ArgumentError(
         "a gravity effector needs the planet frame (J2/harmonics): pass planet_rotation(t) -> inertial-to-planet-fixed rotation"))
@@ -306,23 +302,23 @@ end
 # --- gravity through SpaceAGORA's hooks --------------------------------------------------------------
 
 @inline _needs_frame(::Tuple{}) = false
-@inline _needs_frame(e::Tuple) = SM.environment_requirements(first(e)).planet_frame || _needs_frame(Base.tail(e))
+@inline _needs_frame(e::Tuple) = SpaceAGORA.environment_requirements(first(e)).planet_frame || _needs_frame(Base.tail(e))
 
 @inline _g_sum(::Tuple{}, x, env, t) = zero(V3)
-@inline _g_sum(e::Tuple, x, env, t) = SM.gravity_backbone_acceleration_ii(first(e), x, env, t) + _g_sum(Base.tail(e), x, env, t)
+@inline _g_sum(e::Tuple, x, env, t) = SpaceAGORA.gravity_backbone_acceleration_ii(first(e), x, env, t) + _g_sum(Base.tail(e), x, env, t)
 
 @inline _dg_sum(::Tuple{}, xb, xf, eb, ef, ρ, t) = zero(V3)
 @inline _dg_sum(e::Tuple, xb, xf, eb, ef, ρ, t) =
-    SM.gravity_backbone_relative_acceleration_ii(first(e), xb, ρ, xf, eb, ef, t) + _dg_sum(Base.tail(e), xb, xf, eb, ef, ρ, t)
+    EP.gravity_backbone_relative_acceleration_ii(first(e), xb, ρ, xf, eb, ef, t) + _dg_sum(Base.tail(e), xb, xf, eb, ef, ρ, t)
 
 @inline _lpi(scene::ProximityScene, t) = _needs_frame(scene.effectors) ? scene.planet_rotation(t) : nothing
 
 @inline function _env(scene::ProximityScene, r::V3, l_pi)
-    frame = l_pi === nothing ? nothing : SE.sample_planet_frame_with_lpi((pos_ii = r, vel_ii = zero(V3)), scene.planet, l_pi)
-    return SM.EnvironmentSample(scene.planet; planet_frame = frame)
+    frame = l_pi === nothing ? nothing : EP.sample_planet_frame_with_lpi((pos_ii = r, vel_ii = zero(V3)), scene.planet, l_pi)
+    return SpaceAGORA.EnvironmentSample(scene.planet; planet_frame = frame)
 end
 
-@inline _sample(r::V3) = SM.StateSample(r, zero(V3), 1.0)
+@inline _sample(r::V3) = SpaceAGORA.StateSample(r, zero(V3), 1.0)
 
 @inline function _gravity(scene::ProximityScene, r::V3, t::Float64, l_pi)
     return _g_sum(scene.effectors, _sample(r), _env(scene, r, l_pi), t)

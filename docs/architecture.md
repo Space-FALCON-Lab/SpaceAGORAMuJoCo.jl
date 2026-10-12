@@ -1,22 +1,31 @@
-# MuJoCo proximity scenes: subpackage architecture (Stages 0 to 2)
+# MuJoCo proximity scenes: companion architecture (Stages 0 to 2)
 
-Developer note for `packages/SpaceAGORAMuJoCo`. Design basis: the 2026-10-06 MuJoCo extension design memo
+Developer note for `SpaceAGORAMuJoCo.jl`. Design basis: the 2026-10-06 MuJoCo extension design memo
 (coupling option c, chief frame, Encke gravity). This note records what Stage 1 built and the Stage 0
 dependency decision.
 
 ## Packaging
 
-The scene runner is a separate package in `packages/SpaceAGORAMuJoCo`, following `packages/SpaceAGORAHYPR`:
-its own `Project.toml` (depends on `SpaceAGORA`, compat `0.2`), its own lazy `Artifacts.toml`, `src/` and
-`test/`. The root `Project.toml` and `Artifacts.toml` are untouched, and nothing was added under `src/` or
-`ext/`, so no ownership boundary moves and no contract gate scans the new code (the gates that list
-`packages/SpaceAGORAHYPR/src` as a root do not include it). Putting `ext/` and this package under the
-topology contract was done in Stage 2, together with the core hooks that integration needs (see "Stage 2" below).
+The runner is the independent `SpaceAGORAMuJoCo.jl` companion repository, with its
+own `Project.toml`, lazy `Artifacts.toml`, source, tests and CI. The package UUID,
+MuJoCo binding and scientific models are preserved from the original in-tree
+package. Core remains independent of MuJoCo. Installation explicitly selects the
+tested core commit from `Project.toml`; the 0.2 compatibility family alone does
+not assert support. See the repository README for the independent setup and core
+checkout override.
+
+The adapter follows the same versioned-service pattern as the optional HYPR
+adapter. `SpaceAGORA.ExternalPropagationServices` owns contract 1.0.0, domain
+types, hook identities and narrow runtime accessors. The companion implements
+its eight listed hooks and consumes only that facade and existing public core
+model/sample functions. It checks `require_version(v"1.0.0")` before hook
+registration and again in `__init__`. There is no global provider registry:
+owners are selected per configuration and runtimes belong to individual runs.
 
 ## Stage 0: library choice
 
-`MuJoCo_jll` (General registry) has only 2.3.7+0 and 3.1.6+0 (2024-06-21), and its Yggdrasil recipe is pinned
-to 3.1.6, while upstream is at 3.15.0. The decision was a current version close to Basilisk's 3.11, so the
+At the original Stage 0 review, `MuJoCo_jll` (General registry) had only 2.3.7+0 and 3.1.6+0 (2024-06-21), and its Yggdrasil recipe is pinned
+to 3.1.6, while upstream was at 3.15.0. The decision was a current version close to Basilisk's 3.11, so the
 package pins the official 3.11.0 Linux x86_64 release tarball as a lazy artifact. Pkg checks the download
 against the sha256 in `Artifacts.toml` (which equals the published `.sha256` and the GitHub asset digest) and
 the unpacked tree against its git tree hash. `eq_active` is `mjtBool*` in `mjData` (`mjdata.h:182`).
@@ -45,10 +54,13 @@ One step, with `t = t0 + n dt` from an integer counter: `mj_step1` (fresh kinema
 scene's mass-weighted COM at reset; `opt.gravity` is zero; the integrator is `implicitfast` by default and
 `dt` is required. Wrenches are held for one `dt`, so the scene is first order in `dt` (measured below).
 
-SpaceAGORA internals used: see the Stage 1 report; all are reached through qualified names
-(`SimulationModel.*`, `SimulationEngine.sample_planet_frame_with_lpi`).
+Core gravity and frame functions are reached through public names and the versioned
+`ExternalPropagationServices` facade. Initial-state and runtime access use its
+`external_initial_state` and `external_runtimes` services, without engine storage access.
 
 ## Measured agreement
+
+The following measurements are historical evidence from before repository extraction.
 
 Two free boxes (20 kg and 35 kg, about 50 m apart, 51.6 degree orbit at r = 7000 km) against the same two
 bodies as ordinary spacecraft under `run_simulation` (dp8, reltol 1e-12), one orbit (5850 s). Maximum
@@ -60,12 +72,11 @@ are set from these numbers.
 ## Stage 2: scenes inside `run_simulation`
 
 Core knows nothing about MuJoCo. It has a generic hook for spacecraft that an external integrator owns for a
-whole run (`SimulationModel.ExternalPropagation`, internal names, documented in its module docstring and in the
-topology contract item 11): `external_spacecraft`, `external_step`, `external_preflight`, `external_prepare`,
+whole run (the supported `ExternalPropagationServices` facade): `external_spacecraft`, `external_step`, `external_preflight`, `external_prepare`,
 `external_sync!`, `external_time`, `external_state`, `external_acceleration`. The owner is configured through
 `SimulationConfiguration.external_propagators` (default `()`; runs without it are bit-identical to before).
 
-`ProximitySceneDynamics(scene, 1 => "chaser", 2 => "target")` is the subpackage's owner. The scene is a template:
+`ProximitySceneDynamics(scene, 1 => "chaser", 2 => "target")` is the companion's owner. The scene is a template:
 each run copies the native model, starts from the initial state of the paired spacecraft (`u0`), and never steps
 the template, so one template can serve every sample of a threaded Monte Carlo campaign. `deepcopy` of a scene
 copies the native model.

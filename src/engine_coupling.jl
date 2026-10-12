@@ -6,15 +6,13 @@
 # entries from the absolute scene state. Wrenches beyond differential gravity (thrusters, wheels, joint
 # motors, environment loads) are not applied yet; a control effector on an owned spacecraft is refused.
 
-const EP = SM.ExternalPropagation
-
 """
     ProximitySceneDynamics(scene, spacecraft_index => "body", ...; mass_rtol=nothing)
 
 Hand the listed spacecraft (1-based indices into `dynamics_model.spacecraft`) to `scene`: each is paired with
 the MJCF free-root body that carries it, and every free-root body of the scene must be paired. Pass it in
 `SimulationConfiguration.external_propagators`, for example
-`SimConfig._with_configuration(config; external_propagators = (ProximitySceneDynamics(scene, 1 => "chaser", 2 => "target"),))`.
+`SpaceAGORA.ExternalPropagationServices.with_external_propagators(config, (ProximitySceneDynamics(scene, 1 => "chaser", 2 => "target"),))`.
 
 `scene` is a template: every run copies it (its own `mjModel` and `mjData`) and starts the copy from the
 initial state of the paired spacecraft, so the template is never stepped, can be shared by concurrent runs,
@@ -80,9 +78,9 @@ function EP.external_prepare(ep::ProximitySceneDynamics, args, u0)
     scene = _fresh_copy(ep.scene)
     states = SceneBodyState[]
     for (i, b) in zip(ep.spacecraft, ep.bodies)
-        sc = u0.sc[i]
-        q = hasproperty(sc, :q) ? sa_to_mujoco_quaternion(sc.q) : SVector(1.0, 0.0, 0.0, 0.0)
-        ω = hasproperty(sc, :ω) ? V3(sc.ω) : zero(V3)
+        sc = EP.external_initial_state(u0, i)
+        q = sa_to_mujoco_quaternion(sc.q)
+        ω = V3(sc.ω)
         push!(states, SceneBodyState(b, V3(sc.pos), V3(sc.vel); q, ω))
     end
     scene_reset!(scene, states)
@@ -152,7 +150,7 @@ step at or before the save time.
 function scene_body_pose_save_field(name::AbstractString)
     nm = String(name)
     getter = function (u, t, integrator)
-        for rt in integrator.p.shared_buffers.external_runtimes
+        for rt in EP.external_runtimes(integrator)
             rt isa ProximitySceneRuntime || continue
             i = findfirst(==(nm), rt.scene.names)
             i === nothing && continue
@@ -161,5 +159,5 @@ function scene_body_pose_save_field(name::AbstractString)
         end
         throw(ArgumentError("no scene body named '$nm' in the run's external propagators"))
     end
-    return SM.SaveField(Symbol("scene_pose_", nm), getter; per_satellite = false, column_prefix = "scene_pose_" * nm)
+    return SpaceAGORA.SaveField(Symbol("scene_pose_", nm), getter; per_satellite = false, column_prefix = "scene_pose_" * nm)
 end

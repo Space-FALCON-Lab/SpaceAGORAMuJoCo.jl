@@ -12,7 +12,7 @@ SpaceAGORA = "afbfb69f-5c0b-4832-b760-43725dff8540"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [sources]
-SpaceAGORA = {path = "../.."}
+SpaceAGORA = {url = "https://github.com/Space-FALCON-Lab/SpaceAGORA.jl.git", rev = "1d146eb5d68dc24cfc2e246ae55d55a352f08ab4"}
 
 [compat]
 SpaceAGORA = "0.2"
@@ -20,7 +20,10 @@ StaticArrays = "1"
 julia = "1.12"
 
 [extras]
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Test = "8dfed614-e22c-5e08-85e1-65c425e8b6d1"
 
 [targets]
-test = ["Test"]
+test = ["Test", "Random", "TOML", "Pkg"]

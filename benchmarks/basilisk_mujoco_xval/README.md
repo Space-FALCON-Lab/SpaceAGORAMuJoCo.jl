@@ -1,6 +1,6 @@
 # SpaceAGORA ProximityScene vs Basilisk 2.12 MJScene
 
-Accuracy cross-validation (not timing) of `packages/SpaceAGORAMuJoCo` (`ProximityScene`, PR #237) against the
+Accuracy cross-validation (not timing) of `SpaceAGORAMuJoCo.jl` (`ProximityScene`, PR #237) against the
 MuJoCo-based `MJScene` of Basilisk 2.12. Both tools run MuJoCo 3.11.0 on the same MJCF, the same point-mass Earth
 field (mu = 3.98600436233e14 m^3/s^2, SpaceAGORA's Earth, also set on the Basilisk body) and the same initial state:
 400 km circular orbit, 51.6 deg, (r, 0, 0) with v = sqrt(mu/r)(0, cos i, sin i).
@@ -63,6 +63,26 @@ levels (`D_extrap2_S`) and the observed order of D (`order D`); neither affects 
 
 ## Running
 
+From this companion repository, create the independent Julia environment with
+`scripts/setup_env.jl` as described in the root README. A local comparison needs
+a separate MuJoCo-enabled Basilisk 2.12 build and its Python environment. For
+example, from this directory (replace paths and choose a case/duration):
+
+```sh
+BSK_DIST=/path/to/basilisk/dist3 BSK_PY=/path/to/basilisk/python \
+  sh run_bsk.sh cases/caseA.toml results/local-bsk/caseA_T30 30
+julia --project=/path/to/mjxval_env sagora_driver.jl \
+  cases/caseA.toml results/local-sagora/caseA_T30 30
+python3 compare.py cases/caseA.toml results/local-sagora/caseA_T30 \
+  results/local-bsk/caseA_T30 results/summary_caseA_T30
+```
+
+These are scientific workloads: choose an idle host and appropriate resource
+limits. The separate `run_case.sh` wrapper preserves the original lab-specific
+`sf3` SSH alias, remote directories, lock and systemd limits. Its historical host
+setup follows; it is not needed for installation or the synthetic CI checks.
+
+
 Basilisk needs a MuJoCo-enabled build. The main Basilisk install on sf3 (`~/Documents/basilisk_2_12/dist3`) was built
 with `BUILD_MUJOCO=OFF` and is untouched. A separate copy of the same source (commit 611665f, clean tree) was built
 in `~/xval_mujoco/bsk_mj` (copy made with `rsync -a --exclude=dist3 --exclude=.venv`), keeping its own Conan cache in
@@ -73,13 +93,13 @@ so the venv `bin` must be on PATH). Build commands, about 8 minutes at 10 parall
     PATH=<basilisk>/.venv/bin:$PATH CONAN_HOME=~/xval_mujoco/conan_home CMAKE_BUILD_PARALLEL_LEVEL=10 \
       python conanfile.py --mujoco True --vizInterface False --opNav False --buildTesting False
 
-SpaceAGORA environment: `julia packages/SpaceAGORAMuJoCo/scripts/setup_env.jl /tmp/claude-1000/mjxval_env`.
+SpaceAGORA environment: `julia scripts/setup_env.jl /path/to/mjxval_env`.
 Then (sf3 must be idle; harness synced with `rsync -a --exclude results ./ sf3:xval_mujoco/harness/`):
 
-    sh run_case.sh caseA 30  /tmp/claude-1000/mjxval_env
-    sh run_case.sh caseA 300 /tmp/claude-1000/mjxval_env
-    sh run_case.sh caseB 30  /tmp/claude-1000/mjxval_env
-    sh run_case.sh caseC 12  /tmp/claude-1000/mjxval_env
+    sh run_case.sh caseA 30  /path/to/mjxval_env
+    sh run_case.sh caseA 300 /path/to/mjxval_env
+    sh run_case.sh caseB 30  /path/to/mjxval_env
+    sh run_case.sh caseC 12  /path/to/mjxval_env
 
 Results land in `results/<hostname>/<case>_T<s>/` (gitignored). Wall times are not performance results.
 
@@ -87,7 +107,7 @@ The wrapper prints the remote log after the command finishes and stops on a nonz
 results or running the local side. The comparator requires finite, matching sample times within and across ladders
 (absolute tolerance 1e-9 s). Bounded guard regressions, without native or remote workloads:
 
-    python3 -m unittest discover -s benchmarks/studies/basilisk_mujoco_xval -p test_harness.py
+    python3 -m unittest discover -s benchmarks/basilisk_mujoco_xval -p test_harness.py
 
 ## Reading the results
 
