@@ -144,8 +144,10 @@ end
 
 A save field `scene_pose_<name>` with the absolute pose of the MJCF body `name` (for example an arm link that
 no spacecraft carries): inertial COM position (3) and the SpaceAGORA attitude quaternion (4, scalar-last, body
-to inertial), written as columns `scene_pose_<name>_1..7`. The value is the pose at the last completed scene
-step at or before the save time.
+to inertial), written as columns `scene_pose_<name>_1..7`. The getter reads the current last completed
+native pose when the saving callback executes. It does not reconstruct the pose at the requested row
+time: an interpolated output row can have an earlier timestamp. Align accepted solver steps with native
+output boundaries for time-matched comparisons; setting `data_rate` alone is insufficient.
 """
 function scene_body_pose_save_field(name::AbstractString)
     nm = String(name)

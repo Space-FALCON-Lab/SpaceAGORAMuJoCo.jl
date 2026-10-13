@@ -26,8 +26,17 @@ config = EP.with_external_propagators(config,
 SpaceAGORA.run_simulation(config)
 ```
 
-See [architecture and conventions](docs/architecture.md) for frames, units,
-ownership, solver restrictions and the measured first-order convergence.
+Start with the [user guide](docs/user_guide.md) for a complete two-spacecraft
+example, coordinate conventions and coupling to SpaceAGORA. The
+[architecture note](docs/architecture.md) explains the implementation and its
+measured convergence.
+
+## First release preparation
+
+The [v0.1.0 draft release notes](docs/releases/v0.1.0.md) record exact qualified
+core/companion revisions, a clean installation recipe, native test evidence and
+current limits. This is preparation for a release, not an announcement of a
+published tag or registry entry.
 
 ## Installation
 
