@@ -306,10 +306,15 @@ with a standalone run as a default expectation.
 
 The added fields `scene_pose_chaser_1` through `scene_pose_chaser_7` contain
 three absolute inertial COM coordinates followed by a **scalar-last** quaternion.
-They report the last completed native step at or before the save time, rather
-than the off-step spacecraft extrapolation. The same helper can save an
-articulated child body's pose. Use distinct body names across multiple scene
-owners when selecting bodies this way.
+They read the current last completed native state when the saving callback
+executes, rather than the off-step spacecraft extrapolation. If the solver fills
+an earlier output row after a larger accepted step, the native pose can be later
+than that row's timestamp. The getter does not reconstruct a historical pose.
+For a time-matched comparison, force accepted steps at the requested native
+boundaries with an aligned periodic callback, as the coupling tests do; merely
+setting `data_rate` is insufficient. The same helper can save an articulated
+child body's pose. Use distinct body names across multiple scene owners when
+selecting bodies this way.
 
 ## Scope and practical limits
 
