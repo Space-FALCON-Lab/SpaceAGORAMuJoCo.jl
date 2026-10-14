@@ -88,8 +88,11 @@ with `orientation_sim`, plain attitude kinematics at the last body rate. After e
 `n dt <= t` (an integer counter; the solver is never forced to take `dt`-sized steps) and overwrites the shadow
 entries. The scene lags `t` by `tau < dt`, so the written state is the scene state advanced by `tau` with the same
 model the shadow right-hand side uses (midpoint chief acceleration, constant body rate); at a scene-step boundary
-the scene state is written unchanged. Guidance, navigation and control callbacks therefore read the scene state at
-their ticks exactly, and saved fields on a tick are bit-identical to the standalone runner.
+the scene state is written unchanged. Guidance and navigation ticks must be aligned to integer multiples of scene
+`dt`. Time-matched native output also requires accepted core steps at those boundaries: setting the saved-data
+rate alone does not establish that alignment. The pose save field reads the last completed native state when its
+callback executes, which can be later than an interpolated row's timestamp. See
+[reading coupled output](user_guide.md#reading-coupled-output) for the distinction.
 
 Attitude convention. SpaceAGORA stores `q = (x, y, z, w)` as the active body-to-inertial rotation (`rot(q)` is
 inertial to body, kinematics `qdot = 1/2 q (x) (omega_body, 0)`); MuJoCo's `xquat` is `(w, x, y, z)`, Hamilton,
@@ -105,8 +108,11 @@ integer multiples of the scene `dt`; orbit-count termination and atmosphere-inte
 every spacecraft). Impact detection is not applied to shadow entries. Process-pool campaigns are not supported
 (native state is not serializable).
 
-Known limits. Owned bodies feel gravity only (thrusters, wheels, joint motors and environment loads are Stages 3
-and 4). The adaptive solver's first step and error norm see the whole state vector, so an ordinary spacecraft's
+Known limits. The native scene retains its joints and contacts, and this adapter supplies gravity. Core thruster,
+wheel, joint-motor and environment loads are not transferred to the scene. Contact-force exchange with the core
+compliant multibody model is also unimplemented and unvalidated; [issue #4](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/issues/4)
+tracks the proposed two-way coupling and its scientific validation. The adaptive solver's first step and error norm
+see the whole state vector, so an ordinary spacecraft's
 results change at round-off level (about 1e-8 m) when other spacecraft, owned or not, share the run.
 Historical measurements, made before the `:rk4` refusal was added, found the same first-order attitude errors
 with `integrator=:rk4` and `:implicitfast` (2.11 rad and 2.22 rad at dt = 0.04 on an intermediate-axis tumbling

@@ -12,9 +12,20 @@ load MuJoCo. The current native binding requires Julia 1.12 and Linux x86_64 and
 uses the pinned MuJoCo 3.11.0 artifact. Follow the
 [installation instructions](../README.md#installation) to create a separate
 environment before running the examples below. The
-[release notes](releases/v0.1.0.md) identify the qualified core and companion
+[published release](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/releases/tag/v0.1.0) identifies the qualified core and companion
 revisions; a matching package version number alone is insufficient to establish
 compatibility.
+
+If you already have a SpaceAGORA source checkout, its
+[Robotics package setup](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/main/packages/robotics/README.md)
+can install the recorded companion under `packages/robotics/SpaceAGORAMuJoCo.jl`
+into a separate environment. That route uses your core checkout; the standalone
+installer uses the core pin in this companion's `Project.toml`.
+
+Start with the [complete standalone example](#a-complete-standalone-example),
+then [carry it inside SpaceAGORA](#carrying-the-scene-inside-spaceagora).
+Read [coupled output timing](#reading-coupled-output) and
+[practical limits](#scope-and-practical-limits) before comparing results.
 
 ## A moving origin, with inertial axes
 
@@ -324,6 +335,13 @@ contacts can act, but core aerodynamic, solar-pressure and control loads are
 not transferred to owned bodies. Core control effectors on those bodies are
 refused. A spacecraft cannot simultaneously use scene ownership and the core's
 articulated joints, compliant attachments or robot-arm dynamics.
+
+In particular, this adapter does not feed MuJoCo contact forces back into
+SpaceAGORA's compliant multibody model. Keeping that model while adding MuJoCo
+contacts needs a two-way coupling layer that synchronizes positions and
+velocities, transfers contact forces and moments, and validates stability and
+energy behavior. This work is **not implemented or validated**; the development
+plan is tracked in [issue #4](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/issues/4).
 
 Use a fixed mission duration. Orbit-count termination, atmosphere-interface
 events and continuous touchdown events on owned spacecraft are outside the
