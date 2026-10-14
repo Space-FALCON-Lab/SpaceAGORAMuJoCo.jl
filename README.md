@@ -1,80 +1,120 @@
-# SpaceAGORAMuJoCo.jl
+# MuJoCo for SpaceAGORA
 
-Optional MuJoCo proximity scenes for [SpaceAGORA](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl).
-This companion runs standalone scenes (Stage 1) or carries spacecraft inside
-`run_simulation` through the core's external-propagation adapter contract (Stage 2).
-Actuation and sensors inside coupled scenes remain Stage 3 work.
+SpaceAGORAMuJoCo brings MuJoCo's rigid bodies, articulated joints and contacts
+into orbital proximity scenes. Step a scene on its own, or let it propagate
+selected spacecraft inside [SpaceAGORA](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl)'s
+`run_simulation`. SpaceAGORA supplies the gravitational field; MuJoCo evolves
+the mechanical scene. Installing or importing SpaceAGORA alone does not load
+this companion.
 
-The core package does not depend on this repository. A plain `using SpaceAGORA`
-does not load this adapter or download MuJoCo. Explicitly load both packages:
+Start with [installation](#installation), run the [first example](#first-example),
+then read how the scene [connects to SpaceAGORA](#connection-to-spaceagora).
+[Compatibility](#compatibility) and [validation limits](#validation-and-limits)
+explain which configurations are supported.
 
-```julia
-using SpaceAGORA, SpaceAGORAMuJoCo
-EP = SpaceAGORA.ExternalPropagationServices
-
-# Given an MJCF string and inertial initial position/velocity vectors:
-scene = ProximityScene(; mjcf_xml=xml, dt=0.02,
-    planet=SpaceAGORA.make_no_gram_planet(:earth),
-    gravity_effectors=(SpaceAGORA.InverseSquaredGravityModel(),),
-    initial_states=[SceneBodyState("chaser", r1, v1), SceneBodyState("target", r2, v2)])
-scene_step!(scene)
-scene_body_state(scene, "chaser")  # absolute inertial (r, v, q, ω)
-
-# Given a compatible SpaceAGORA SimulationConfiguration:
-config = EP.with_external_propagators(config,
-    (ProximitySceneDynamics(scene, 1 => "chaser", 2 => "target"),))
-SpaceAGORA.run_simulation(config)
-```
-
-Start with the [user guide](docs/user_guide.md) for a complete two-spacecraft
-example, coordinate conventions and coupling to SpaceAGORA. The
-[architecture note](docs/architecture.md) explains the implementation and its
-measured convergence.
-
-## First release preparation
-
-The [v0.1.0 draft release notes](docs/releases/v0.1.0.md) record exact qualified
-core/companion revisions, a clean installation recipe, native test evidence and
-current limits. This is preparation for a release, not an announcement of a
-published tag or registry entry.
+[MuJoCo for SpaceAGORA v0.1.0](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/releases/tag/v0.1.0)
+is published. Its release page identifies the qualified source pair and native
+test evidence. The earlier [release preparation record](docs/releases/v0.1.0.md)
+is retained as historical documentation.
 
 ## Installation
 
-Julia 1.12 is required. Native scenes currently support **Linux x86_64 only**.
-Clone this repository and build a separate environment:
+Native scenes support **Linux x86_64** and require Julia 1.12 and Git. The
+published release was tested with Julia 1.12.3. To install that release in a
+separate environment:
 
 ```sh
 git clone https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl.git
 cd SpaceAGORAMuJoCo.jl
+git checkout --detach v0.1.0
+unset SPACEAGORA_CORE_PATH SPACEAGORA_CORE_REV
 julia --startup-file=no scripts/setup_env.jl /path/to/mujoco-env
 JULIA_LOAD_PATH='@:@stdlib' julia --startup-file=no --project=/path/to/mujoco-env
 ```
 
-The setup uses command-line Git to check out the exact SpaceAGORA commit recorded
-in `Project.toml` under the environment's `sources/SpaceAGORA-<SHA>` directory,
-then develops that core checkout and this companion and declares the direct
-imports needed by its tests and benchmark driver. It creates its own manifest;
-it never copies a parent manifest or calls a HYPR installer. No native GRAM data
-or parent repository checkout is needed. Git is required; submodules are not
-initialized and LFS files remain pointers. The managed core checkout is verified
-before package installation. Repeat setup reuses it only when its recorded
-source, HEAD, package identity and clean state match; a modified or mismatched
-checkout is refused without resetting it. Keep the environment and its `sources`
-directory together while using the installation. Dependency installation and Julia
-precompilation occur only when you run this setup, not when importing the adapter.
-The lazy MuJoCo artifact downloads when a native operation first needs it; its
-archive and unpacked tree are verified against `Artifacts.toml`.
+In Julia, load both packages:
 
-The `SpaceAGORA = "0.2"` compatibility entry is an outer version-family constraint,
-not a claim that every 0.2 release supports this adapter. The supported default
-is the **exact core source pin plus `ExternalPropagationServices` contract 1.0.0**.
-Source entries do not propagate into arbitrary consumer environments; use the
-setup above or explicitly install that core revision before adding the companion.
-The adapter checks the contract before defining hook methods and again at runtime
-initialization, including when loading a precompiled package. The shared
-[adapter contract standard](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/0a86898c52c16c09aa187c761cc5ef37082ee8a5/docs/src/maintainer/adapter_contract.md)
-and [external propagation service reference](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/0a86898c52c16c09aa187c761cc5ef37082ee8a5/docs/src/maintainer/external_propagation_services.md)
-describe the core-owned interface.
+```julia
+using SpaceAGORA, SpaceAGORAMuJoCo
+```
+
+The installer checks out the exact SpaceAGORA revision recorded in
+`Project.toml`, develops that source and this companion, and creates the
+environment's manifest. Keep the companion checkout, environment and its
+`sources/` directory together: the environment refers to those local paths.
+Repeat setup reuses the managed core checkout only when its source, revision,
+package identity and clean state match. It refuses a modified or mismatched
+checkout without resetting it.
+
+Setup installs dependencies and precompiles Julia packages. The lazy MuJoCo
+3.11.0 artifact downloads when a native operation first needs it; its archive
+and unpacked tree are checked against `Artifacts.toml`.
+
+## First example
+
+The [two-spacecraft example](docs/user_guide.md#a-complete-standalone-example)
+in the user guide defines the complete MJCF model, initial states and gravity
+settings. Save it as `two_cubes.jl` and run it in the environment above:
+
+```sh
+julia --startup-file=no --project=/path/to/mujoco-env two_cubes.jl
+```
+
+The example uses two non-contacting cubes so you can first check orbital motion
+and state conventions. Continue with
+[carrying the scene inside SpaceAGORA](docs/user_guide.md#carrying-the-scene-inside-spaceagora)
+to build a full simulation configuration and read its saved table. The guide
+also explains frames, quaternions, resetting scenes and applying standalone
+forces.
+
+## Connection to SpaceAGORA
+
+The companion implements `SpaceAGORA.ExternalPropagationServices` contract
+**1.0.0**. `ProximitySceneDynamics` assigns the scene exclusive propagation
+ownership of selected spacecraft. Each coupled run prepares its own native
+scene from the template; other spacecraft may continue to use the core
+propagator in the same run.
+
+In a SpaceAGORA source checkout, MuJoCo is organized under
+`packages/robotics/SpaceAGORAMuJoCo.jl`. To use that checkout's selected companion
+revision, run this separate setup route from the **SpaceAGORA repository root**:
+
+```sh
+julia --startup-file=no scripts/optional_packages.jl setup mujoco /path/to/mujoco-env
+JULIA_LOAD_PATH='@:@stdlib' julia --startup-file=no --project=/path/to/mujoco-env
+```
+
+Then load `SpaceAGORA` and `SpaceAGORAMuJoCo`. This route uses the current core
+checkout and its recorded companion revision; it does not change this
+repository's standalone default core pin. See the
+[Robotics package guide](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/main/packages/robotics/README.md)
+for checkout management and the
+[SpaceAGORA MuJoCo guide](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/main/docs/src/user/mujoco_scenes.md)
+for the parent package's entry points.
+
+MuJoCo contacts act on geometry inside the native scene. Contact-force exchange
+with SpaceAGORA's **compliant multibody dynamics** is **not implemented or
+validated**. That two-way coupling is tracked in
+[issue #4](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/issues/4).
+Core actuation and sensors are also not connected to coupled scenes. Read the
+[scope and practical limits](docs/user_guide.md#scope-and-practical-limits)
+before combining models.
+
+## Compatibility
+
+The `SpaceAGORA = "0.2"` entry is a version-family constraint. The supported
+standalone default is the **exact core source pin plus
+`ExternalPropagationServices` contract 1.0.0**; the version family alone does
+not qualify another source revision. Source entries do not propagate into
+arbitrary consumer environments, so use the installer or explicitly select
+that core revision before adding the companion.
+
+The adapter checks the contract before defining hook methods and again at
+runtime initialization, including when loading a precompiled package. The
+[adapter standard](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/0a86898c52c16c09aa187c761cc5ef37082ee8a5/docs/src/maintainer/adapter_contract.md)
+and [external propagation reference](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/0a86898c52c16c09aa187c761cc5ef37082ee8a5/docs/src/maintainer/external_propagation_services.md)
+describe the core-owned interface. The [architecture note](docs/architecture.md)
+explains scene ownership and synchronization.
 
 For integration development, override the core checkout or a full commit SHA:
 
@@ -88,7 +128,9 @@ SPACEAGORA_CORE_PATH=/path/to/SpaceAGORA.jl \
 Overrides are compatibility probes; they do not expand the supported release
 range. Core integration CI uses `SPACEAGORA_CORE_PATH` with its exact checkout.
 
-## Validation
+<a id="validation"></a>
+
+## Validation and limits
 
 Run the native suite with the library required and four threads, including the
 threaded Monte Carlo identity checks:
@@ -118,12 +160,19 @@ julia --startup-file=no test/source_acquisition_tests.jl
 python3 -B -m unittest discover -s benchmarks/basilisk_mujoco_xval -p test_harness.py
 ```
 
-The Python guard tests require NumPy and Python 3.11 or later. The complete
-[Basilisk comparison harness](benchmarks/basilisk_mujoco_xval/README.md), its cases
-and [third-party notices](benchmarks/basilisk_mujoco_xval/NOTICE.md) live here.
+The Python guard tests require NumPy and Python 3.11 or later. The
+[Basilisk comparison](benchmarks/basilisk_mujoco_xval/README.md) runs MuJoCo on
+both sides. It checks the surrounding frame, gravity, actuation and integration
+choices, but agreement can miss an error shared by the native engine. Its
+contact case remains **inconclusive**. The guide records convergence evidence
+and limitations; each new scene needs its own model and resolution checks.
+The models retain their [third-party notices](benchmarks/basilisk_mujoco_xval/NOTICE.md).
 The coupled timing study from PR253 remains in SpaceAGORA core.
 
-## Provenance and license
+## Credits and license
+
+**Author and project lead: Evan Yu.** This repository also preserves the work of
+the SpaceAGORA contributors and the third-party acknowledgments below.
 
 This repository preserves the extracted package and cross-validation harness Git
 histories from SpaceAGORA, including the reviewed Stage 1/2 implementation. The
