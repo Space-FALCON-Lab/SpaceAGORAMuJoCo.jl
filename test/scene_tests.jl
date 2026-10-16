@@ -218,6 +218,14 @@ end
     close(branch)
     GC.gc(true); GC.gc(true)                 # the finalizers of closed scenes must not free again
     @test !isopen(branch)
+    # an owner already closed through the binding does not stop close(scene) from freeing the other one
+    for owner in (:data, :model)
+        half = make_scene((SM.InverseSquaredGravityModel(),); dt=0.05)
+        close(getfield(half, owner))
+        @test !isopen(half) && isopen(half.model) + isopen(half.data) == 1
+        close(half)
+        @test !isopen(half.model) && !isopen(half.data) && isempty(half.qpos) && size(half.xipos) == (3, 0)
+    end
 end
 
 @testset "arena use: MJCF size and the peak since the last reset" begin

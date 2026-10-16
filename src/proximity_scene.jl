@@ -448,8 +448,8 @@ Idempotent. Afterwards every call that reaches native memory throws an `InvalidS
 task steps it. Closing a scene does not affect its copies.
 """
 function Base.close(scene::ProximityScene)
-    isopen(scene) || return nothing
-    # Swap out the views first, so no field of the scene points into the memory freed below.
+    # Swap out the views first, so no field of the scene points into the memory freed below. Every step is
+    # idempotent, and each owner is closed on its own: either may already have been closed through the binding.
     scene.mass = Float64[]; scene.qpos = Float64[]; scene.qvel = Float64[]; scene.ctrl = Float64[]
     scene.xfrc = zeros(6, 0); scene.xipos = zeros(3, 0); scene.xquat = zeros(4, 0)
     close(scene.data)
