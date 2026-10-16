@@ -35,18 +35,19 @@ Platforms other than Linux x86_64 raise an unsupported-platform error. License i
 
 | File | Role |
 |---|---|
-| `src/binding.jl` | The only file that calls libmujoco: 21 C entry points resolved with `dlsym`, `MjModel`/`MjData` owners with finalizers, field access at byte offsets from the 3.11.0 headers (`offsetof`). `api()` refuses any `mj_version()` other than 3011000. |
+| `src/binding.jl` | The only file that calls libmujoco: 21 C entry points resolved with `dlsym`, `MjModel`/`MjData` owners freed by `close` or, failing that, their finalizers (every call checks that the owner is still open), field access at byte offsets from the 3.11.0 headers (`offsetof`). `api()` refuses any `mj_version()` other than 3011000. |
 | `src/proximity_scene.jl` | `ProximityScene`, state types and the runner. |
-| `test/binding_tests.jl` | Checks every offset against an `mj_*` readback or an MJCF-fixed value. |
-| `test/scene_tests.jl` | Free-body agreement with ordinary spacecraft, determinism, state round trip, validation, a_fb, leak loop. |
+| `test/binding_tests.jl` | Checks every offset against an `mj_*` readback or an MJCF-fixed value; `close` on the owners. |
+| `test/scene_tests.jl` | Free-body agreement with ordinary spacecraft, determinism, state round trip, validation, a_fb, leak loop, `close` and use after close, arena use. |
 
 ## Runner
 
 Public names: `ProximityScene`, `SceneBodyState`, `SceneState`, `body_state_from_initial_condition`,
 `scene_reset!`, `scene_step!`, `scene_state`, `scene_set_state!`, `scene_time`, `scene_chief`,
-`scene_body_names`, `scene_body_state`, `scene_ctrl`. Every scene owns its `mjModel` copy and `mjData` and
-writes no global state; the step is deterministic and `scene_reset!(scene[, states])`, `scene_state`,
-`scene_set_state!` and `copy(scene)` are the hooks a vectorized (RL) runner builds on.
+`scene_body_names`, `scene_body_state`, `scene_ctrl`, `scene_arena_use`, plus `close`/`isopen` on a scene. Every
+scene owns its `mjModel` copy and `mjData` and writes no global state; the step is deterministic and
+`scene_reset!(scene[, states])`, `scene_state`, `scene_set_state!` and `copy(scene)` are the hooks a vectorized
+(RL) runner builds on.
 
 One step, with `t = t0 + n dt` from an integer counter: `mj_step1` (fresh kinematics) -> per-body wrench
 `m_i dg_i + F_ext_i - m_i a_fb` from those kinematics, at the COM in world (ECI-parallel) axes, into
