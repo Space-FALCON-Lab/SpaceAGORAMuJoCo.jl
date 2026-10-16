@@ -70,7 +70,8 @@ forces.
 ## Connection to SpaceAGORA
 
 The companion implements `SpaceAGORA.ExternalPropagationServices` contract
-**1.0.0**. `ProximitySceneDynamics` assigns the scene exclusive propagation
+**2.0.0**; the published v0.1.0 release implements contract 1.0.0 with its own
+pinned core. `ProximitySceneDynamics` assigns the scene exclusive propagation
 ownership of selected spacecraft. Each coupled run prepares its own native
 scene from the template; other spacecraft may continue to use the core
 propagator in the same run.
@@ -102,17 +103,18 @@ before combining models.
 
 ## Compatibility
 
-The `SpaceAGORA = "0.2"` entry is a version-family constraint. The supported
-standalone default is the **exact core source pin plus
-`ExternalPropagationServices` contract 1.0.0**; the version family alone does
-not qualify another source revision. Source entries do not propagate into
-arbitrary consumer environments, so use the installer or explicitly select
-that core revision before adding the companion.
+The `SpaceAGORA = "0.2, 0.3"` entry is a version-family constraint. SpaceAGORA
+0.3.0 is the first release planned to carry contract 2.0.0; until then the
+pinned core revision declares version 0.2.0. The supported standalone default is
+the **exact core source pin plus `ExternalPropagationServices` contract
+2.0.0**; the version families alone do not qualify another source revision.
+Source entries do not propagate into arbitrary consumer environments, so use the
+installer or explicitly select that core revision before adding the companion.
 
 The adapter checks the contract before defining hook methods and again at
 runtime initialization, including when loading a precompiled package. The
-[adapter standard](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/0a86898c52c16c09aa187c761cc5ef37082ee8a5/docs/src/maintainer/adapter_contract.md)
-and [external propagation reference](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/0a86898c52c16c09aa187c761cc5ef37082ee8a5/docs/src/maintainer/external_propagation_services.md)
+[adapter standard](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/c2708d20a94bc7ae9d3a5b70ceb49e6785eb8955/docs/src/reference/adapter_contract.md)
+and [external propagation reference](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/c2708d20a94bc7ae9d3a5b70ceb49e6785eb8955/docs/src/reference/external_propagation_services.md)
 describe the core-owned interface. The [architecture note](docs/architecture.md)
 explains scene ownership and synchronization.
 

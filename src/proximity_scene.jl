@@ -15,18 +15,22 @@ const V3 = SVector{3, Float64}
 
 # --- attitude convention --------------------------------------------------------------------------------
 #
-# SpaceAGORA stores the attitude quaternion scalar-last, q = (x, y, z, w), as the active body-to-inertial
-# rotation: `rot(q)` is the inertial-to-body matrix (the transpose of the Hamilton matrix of q), and the
-# kinematics are qdot = 1/2 q (x) (omega_body, 0). MuJoCo stores quaternions scalar-first, (w, x, y, z), as the
-# Hamilton body-to-world rotation (`xquat`), the free joint's angular velocity is in the body frame, and the
-# scene's world axes are parallel to ECI. Both are therefore the same rotation, the same Hamilton product and
-# the same body-frame rate: the mapping is a pure reordering of components, exact in floating point, and the
-# angular velocity needs no transformation.
+# SpaceAGORA stores the attitude quaternion scalar-last, q = (x, y, z, w), with v_body = rot(q) * v_inertial:
+# `rot(q)` is the transpose of the Hamilton rotation matrix R(q), and the kinematics are
+# qdot = 1/2 q (x) (omega_body, 0). MuJoCo stores quaternions scalar-first, (w, x, y, z), with
+# v_world = R(q) * v_body (`xquat`), the free joint's angular velocity is in the body frame, and the scene's world
+# axes are parallel to ECI. Both are therefore the same rotation, the same Hamilton product and the same
+# body-frame rate: the mapping is a pure reordering of components, exact in floating point, and the angular
+# velocity needs no transformation.
 
-"""`sa_to_mujoco_quaternion(q)`: SpaceAGORA `(x, y, z, w)` (body to inertial) to MuJoCo `(w, x, y, z)` (body to world)."""
+"""
+`sa_to_mujoco_quaternion(q)`: SpaceAGORA `(x, y, z, w)` to MuJoCo `(w, x, y, z)`. Both orders describe the same
+rotation, `v_body = rot(q) * v_inertial` in SpaceAGORA's terms and `v_world = R(q) * v_body` in MuJoCo's, with `R`
+the Hamilton rotation matrix and `rot(q) = R(q)'`; only the components are reordered.
+"""
 sa_to_mujoco_quaternion(q) = SVector{4, Float64}(q[4], q[1], q[2], q[3])
 
-"""`mujoco_to_sa_quaternion(q)`: MuJoCo `(w, x, y, z)` (body to world) to SpaceAGORA `(x, y, z, w)` (body to inertial)."""
+"""`mujoco_to_sa_quaternion(q)`: MuJoCo `(w, x, y, z)` to SpaceAGORA `(x, y, z, w)`, the inverse reordering of [`sa_to_mujoco_quaternion`](@ref)."""
 mujoco_to_sa_quaternion(q) = SVector{4, Float64}(q[2], q[3], q[4], q[1])
 
 # RK4 is not offered: the runner steps with mj_step1/mj_step2 so it can write wrenches from fresh
@@ -39,7 +43,7 @@ const _INTEGRATORS = (euler = Binding.INT_EULER, implicit = Binding.INT_IMPLICIT
     SceneBodyState(body, r, v; q=(1,0,0,0), ω=(0,0,0))
 
 Absolute initial state of one free-root body of a scene: inertial position `r` [m] and velocity `v` [m/s]
-of the body center of mass, attitude quaternion `q` (MuJoCo order `(w, x, y, z)`, body to world; see
+of the body center of mass, attitude quaternion `q` (MuJoCo order `(w, x, y, z)`, `v_world = R(q) * v_body`; see
 [`sa_to_mujoco_quaternion`](@ref) for SpaceAGORA's order) and body-frame angular velocity `ω` [rad/s], the same
 vector SpaceAGORA stores. `body` is the MJCF body name.
 """
@@ -266,8 +270,8 @@ end
     scene_body_state(scene, i) -> (r, v, q, ω, ω_world)
 
 Absolute inertial state of body `i`: COM position `R + xipos`, COM velocity `V + v`, attitude quaternion
-`q = (w, x, y, z)` body to world, angular velocity `ω` in the body frame (the vector SpaceAGORA stores; read
-exactly from the free joint for a free-root body) and the same rate in world axes `ω_world`.
+`q = (w, x, y, z)` with `v_world = R(q) * v_body`, angular velocity `ω` in the body frame (the vector SpaceAGORA
+stores; read exactly from the free joint for a free-root body) and the same rate in world axes `ω_world`.
 """
 function scene_body_state(scene::ProximityScene, i::Integer)
     1 <= i <= scene.nb || throw(BoundsError(scene.names, i))

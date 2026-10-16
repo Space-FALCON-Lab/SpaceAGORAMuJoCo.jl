@@ -50,7 +50,7 @@ The conventions used by the public interface are:
 | --- | --- |
 | `SceneBodyState.r`, `scene_body_state(...).r` | Body center-of-mass position, inertial axes, metres |
 | `SceneBodyState.v`, `scene_body_state(...).v` | Body center-of-mass velocity, inertial axes, metres per second |
-| Scene quaternion `q` | Unit quaternion `(w, x, y, z)`, active rotation from body axes to inertial-parallel world axes |
+| Scene quaternion `q` | Unit quaternion `(w, x, y, z)` with `v_world = R(q) * v_body`, where `R` is the Hamilton rotation matrix and the world axes are parallel to the inertial axes |
 | Angular velocity `ω` | Body axes, radians per second |
 | Returned `ω_world` | The same angular velocity expressed in inertial-parallel world axes |
 | Scene time and step | Seconds; `scene_time(scene) = t0 + n*dt` |
@@ -63,8 +63,9 @@ axes. MJCF geometry is written in metres, and a box's `size` gives its
 **half-lengths**. Set the MJCF compiler's angle convention explicitly when using
 angle-valued model attributes.
 
-SpaceAGORA spacecraft quaternions use scalar-last order, `(x, y, z, w)`, for the
-same active rotation. Use `sa_to_mujoco_quaternion` and
+SpaceAGORA spacecraft quaternions use scalar-last order, `(x, y, z, w)`, and
+describe the same rotation as `v_body = rot(q) * v_inertial`, with
+`rot(q) = R(q)'`. Use `sa_to_mujoco_quaternion` and
 `mujoco_to_sa_quaternion` when crossing that boundary. The conversion reorders
 components; it does not conjugate the quaternion or rotate the body angular
 velocity. `body_state_from_initial_condition(name, ic)` performs this conversion
@@ -230,7 +231,7 @@ vector without assigning them to this owner.
 
 ```julia
 EP = SpaceAGORA.ExternalPropagationServices
-EP.require_version(v"1.0.0")
+EP.require_version(v"2.0.0")
 
 function cube_spacecraft(r, v, id)
     bus = SpaceAGORA.Link(;
@@ -316,7 +317,8 @@ every saved row to be an exact native state. Do not use row-for-row identity
 with a standalone run as a default expectation.
 
 The added fields `scene_pose_chaser_1` through `scene_pose_chaser_7` contain
-three absolute inertial COM coordinates followed by a **scalar-last** quaternion.
+three absolute inertial COM coordinates followed by a **scalar-last** SpaceAGORA
+quaternion (`v_body = rot(q) * v_inertial`).
 They read the current last completed native state when the saving callback
 executes, rather than the off-step spacecraft extrapolation. If the solver fills
 an earlier output row after a larger accepted step, the native pose can be later
