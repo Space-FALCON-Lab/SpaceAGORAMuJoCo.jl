@@ -113,8 +113,8 @@ installer or explicitly select that core revision before adding the companion.
 
 The adapter checks the contract before defining hook methods and again at
 runtime initialization, including when loading a precompiled package. The
-[adapter standard](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/c2708d20a94bc7ae9d3a5b70ceb49e6785eb8955/docs/src/reference/adapter_contract.md)
-and [external propagation reference](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/c2708d20a94bc7ae9d3a5b70ceb49e6785eb8955/docs/src/reference/external_propagation_services.md)
+[adapter standard](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/13b386754daf7c95b96eb101aa8e08114aeb8839/docs/src/reference/adapter_contract.md)
+and [external propagation reference](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/13b386754daf7c95b96eb101aa8e08114aeb8839/docs/src/reference/external_propagation_services.md)
 describe the core-owned interface. The [architecture note](docs/architecture.md)
 explains scene ownership and synchronization.
 
