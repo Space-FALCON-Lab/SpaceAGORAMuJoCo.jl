@@ -118,6 +118,14 @@ end
 end
 
 @testset "native memory: repeated make/free neither leaks nor crashes" begin
+    # The leak signal is the memory malloc still has allocated: glibc mallinfo2 `uordblks` (all arenas) plus
+    # `hblkhd` (mmapped chunks). Process RSS is not one. Every mjData reserves a large arena that Julia's GC
+    # cannot see, so a cycle holds hundreds of them until a collection runs the finalizers; once they are
+    # freed glibc keeps the heap pages they touched, and how many depends on where the chunks landed. RSS
+    # follows that high-water mark and varies widely between runs with nothing leaked, so it is reported
+    # only. Dropping any one of the binding's frees (data, model, spec) leaves at least a model's worth of
+    # memory per scene allocated, several times this bound.
+    allocated_mb() = (mi = ccall(:mallinfo2, NTuple{10, Csize_t}, ()); Int(mi[8] + mi[5]) / 2^20)
     rss_mb() = parse(Int, split(read("/proc/self/statm", String))[2]) * 4096 / 2^20
     cycle() = for _ in 1:150
         sc = make_scene((SM.InverseSquaredGravityModel(),); dt=0.05)
@@ -126,13 +134,13 @@ end
         run_steps!(cp, 3)
     end
     cycle(); GC.gc(true); GC.gc(true)
-    before = rss_mb()
+    before = (allocated = allocated_mb(), rss = rss_mb())
     for _ in 1:4
         cycle(); GC.gc(true); GC.gc(true)
     end
-    growth = rss_mb() - before
-    @info "RSS growth over 1200 scene make/free cycles (MB)" growth
-    @test growth < 60
+    growth = allocated_mb() - before.allocated
+    @info "Growth over 1200 scene make/free cycles (MB)" allocated = growth rss = rss_mb() - before.rss
+    @test growth < 4
 end
 
 @testset "MuJoCo instability is an error, not a silent reset" begin
