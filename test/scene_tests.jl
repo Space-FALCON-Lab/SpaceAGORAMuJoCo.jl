@@ -124,8 +124,10 @@ end
     # freed glibc keeps the heap pages they touched, and how many depends on where the chunks landed. RSS
     # follows that high-water mark and varies widely between runs with nothing leaked, so it is reported
     # only. Dropping any one of the binding's frees (data, model, spec) leaves at least a model's worth of
-    # memory per scene allocated, several times this bound.
-    allocated_mb() = (mi = ccall(:mallinfo2, NTuple{10, Csize_t}, ()); Int(mi[8] + mi[5]) / 2^20)
+    # memory per scene allocated, several times this bound. mallinfo2 needs glibc 2.33 or later; with an
+    # older glibc the loop still runs but the bound is skipped (mallinfo's int fields wrap at 4 GiB).
+    mallinfo2 = try cglobal(:mallinfo2) catch; C_NULL end
+    allocated_mb() = mallinfo2 == C_NULL ? NaN : (mi = ccall(mallinfo2, NTuple{10, Csize_t}, ()); Int(mi[8] + mi[5]) / 2^20)
     rss_mb() = parse(Int, split(read("/proc/self/statm", String))[2]) * 4096 / 2^20
     cycle() = for _ in 1:150
         sc = make_scene((SM.InverseSquaredGravityModel(),); dt=0.05)
@@ -140,7 +142,12 @@ end
     end
     growth = allocated_mb() - before.allocated
     @info "Growth over 1200 scene make/free cycles (MB)" allocated = growth rss = rss_mb() - before.rss
-    @test growth < 4
+    if mallinfo2 == C_NULL
+        @warn "glibc $(unsafe_string(ccall(:gnu_get_libc_version, Cstring, ()))) has no mallinfo2 (2.33 or later): allocated-memory bound not checked"
+        @test_skip growth < 4
+    else
+        @test growth < 4
+    end
 end
 
 @testset "MuJoCo instability is an error, not a silent reset" begin
