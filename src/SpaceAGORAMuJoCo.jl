@@ -14,7 +14,7 @@ import SpaceAGORA
 isdefined(SpaceAGORA, :ExternalPropagationServices) || throw(ArgumentError(
     "This SpaceAGORA revision has no ExternalPropagationServices contract. Install the core revision pinned by SpaceAGORAMuJoCo/scripts/setup_env.jl."))
 const EP = SpaceAGORA.ExternalPropagationServices
-const CORE_CONTRACT_VERSION = v"1.0.0"
+const CORE_CONTRACT_VERSION = v"2.0.0"
 EP.require_version(CORE_CONTRACT_VERSION)
 
 # Recheck when loading a precompiled companion against a different core checkout.

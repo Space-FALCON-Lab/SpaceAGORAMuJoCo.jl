@@ -10,15 +10,15 @@ The runner is the independent `SpaceAGORAMuJoCo.jl` companion repository, with i
 own `Project.toml`, lazy `Artifacts.toml`, source, tests and CI. The package UUID,
 MuJoCo binding and scientific models are preserved from the original in-tree
 package. Core remains independent of MuJoCo. Installation explicitly selects the
-tested core commit from `Project.toml`; the 0.2 compatibility family alone does
-not assert support. See the repository README for the independent setup and core
-checkout override.
+tested core commit from `Project.toml`; the `0.2, 0.3` compatibility families
+alone do not assert support. See the repository README for the independent setup
+and core checkout override.
 
 The adapter follows the same versioned-service pattern as the optional HYPR
-adapter. `SpaceAGORA.ExternalPropagationServices` owns contract 1.0.0, domain
+adapter. `SpaceAGORA.ExternalPropagationServices` owns contract 2.0.0, domain
 types, hook identities and narrow runtime accessors. The companion implements
 its eight listed hooks and consumes only that facade and existing public core
-model/sample functions. It checks `require_version(v"1.0.0")` before hook
+model/sample functions. It checks `require_version(v"2.0.0")` before hook
 registration and again in `__init__`. There is no global provider registry:
 owners are selected per configuration and runtimes belong to individual runs.
 
@@ -76,6 +76,9 @@ Core knows nothing about MuJoCo. It has a generic hook for spacecraft that an ex
 whole run (the supported `ExternalPropagationServices` facade): `external_spacecraft`, `external_step`, `external_preflight`, `external_prepare`,
 `external_sync!`, `external_time`, `external_state`, `external_acceleration`. The owner is configured through
 `SimulationConfiguration.external_propagators` (default `()`; runs without it are bit-identical to before).
+Contract 2.0.0 puts the engine time before the owner-local position: `external_state(rt, t, slot)` and
+`external_acceleration(rt, t, slot)`, where `slot` indexes `external_spacecraft(ep)` (contract 1.0.0 had the
+position first).
 
 `ProximitySceneDynamics(scene, 1 => "chaser", 2 => "target")` is the companion's owner. The scene is a template:
 each run copies the native model, starts from the initial state of the paired spacecraft (`u0`), and never steps
@@ -95,11 +98,12 @@ rate alone does not establish that alignment. The pose save field reads the last
 callback executes, which can be later than an interpolated row's timestamp. See
 [reading coupled output](user_guide.md#reading-coupled-output) for the distinction.
 
-Attitude convention. SpaceAGORA stores `q = (x, y, z, w)` as the active body-to-inertial rotation (`rot(q)` is
-inertial to body, kinematics `qdot = 1/2 q (x) (omega_body, 0)`); MuJoCo's `xquat` is `(w, x, y, z)`, Hamilton,
-body to world, with the free joint's rate in the body frame and world axes parallel to ECI. The mapping is a
-reordering of components (`sa_to_mujoco_quaternion`, `mujoco_to_sa_quaternion`) and the rate needs no
-transformation. `scene_body_state` now returns the body-frame rate `omega` (and `omega_world`).
+Attitude convention. SpaceAGORA stores `q = (x, y, z, w)` with `v_body = rot(q) * v_inertial` (`rot(q)` is the
+transpose of the Hamilton rotation matrix `R(q)`, kinematics `qdot = 1/2 q (x) (omega_body, 0)`); MuJoCo's `xquat`
+is `(w, x, y, z)` with `v_world = R(q) * v_body`, the free joint's rate in the body frame and world axes parallel
+to ECI. The mapping is a reordering of components (`sa_to_mujoco_quaternion`, `mujoco_to_sa_quaternion`) and
+the rate needs no transformation. `scene_body_state` now returns the body-frame rate `omega` (and
+`omega_world`).
 
 Refusals (clear `ArgumentError`s at setup): checkpointing and resume; `run_constellation_ensemble`; solver modes
 other than `:tsit5`, `:auto_stiff`, `:rodas5p`, `:dp8`; the flat RHS route; articulated joints, compliant

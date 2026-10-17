@@ -16,9 +16,11 @@ end
     @test !any(path -> occursin(r"(?i)^(lib)?mujoco([.-]|$)", basename(path)), Libdl.dllist())
     services = SpaceAGORA.ExternalPropagationServices
     @test SpaceAGORAMuJoCo.EP === services
-    @test services.CONTRACT_VERSION == SpaceAGORAMuJoCo.CORE_CONTRACT_VERSION == v"1.0.0"
-    @test services.require_version(v"1.0.0") === nothing
-    @test_throws services.CompatibilityError services.require_version(v"0.0.0")
+    @test services.CONTRACT_VERSION == SpaceAGORAMuJoCo.CORE_CONTRACT_VERSION == v"2.0.0"
+    @test services.require_version(v"2.0.0") === nothing
+    for incompatible in (v"0.0.0", v"1.0.0")
+        @test_throws services.CompatibilityError services.require_version(incompatible)
+    end
     @test SpaceAGORAMuJoCo.ProximitySceneDynamics <: services.AbstractExternalPropagator
     @test services.IMPLEMENTED_FUNCTIONS == (
         :external_spacecraft, :external_step, :external_preflight, :external_prepare,
@@ -34,5 +36,11 @@ end
     @test !any(path -> occursin(r"(?i)^(lib)?mujoco([.-]|$)", basename(path)), Libdl.dllist())
     for name in services.IMPLEMENTED_FUNCTIONS
         @test any(method -> method.module === SpaceAGORAMuJoCo, methods(getproperty(services, name)))
+    end
+    # Contract 2.0.0 order: time before the owner-local slot.
+    runtime = SpaceAGORAMuJoCo.ProximitySceneRuntime
+    for hook in (services.external_state, services.external_acceleration)
+        @test hasmethod(hook, Tuple{runtime, Float64, Int})
+        @test !hasmethod(hook, Tuple{runtime, Int, Float64})
     end
 end

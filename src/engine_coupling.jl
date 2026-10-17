@@ -130,9 +130,9 @@ end
 # advanced by τ with the shadow's own model: the chief's acceleration, taken at the midpoint of the interval, for
 # translation, and constant body rate for attitude (q (x) exp(ω τ), the kinematics the engine integrates). At a
 # scene-step boundary τ = 0 and the scene state is written unchanged (a remainder below 1e-9 dt is rounding of a
-# tstop, not a lag).
-function EP.external_state(rt::ProximitySceneRuntime, k::Int, t::Float64)
-    s = scene_body_state(rt.scene, rt.body_ids[k])
+# tstop, not a lag). `slot` is the 1-based position in `external_spacecraft(ep)`, not a run index.
+function EP.external_state(rt::ProximitySceneRuntime, t::Float64, slot::Int)
+    s = scene_body_state(rt.scene, rt.body_ids[slot])
     τ = t - rt.scene.n * rt.scene.dt
     q = mujoco_to_sa_quaternion(s.q)
     τ > 1.0e-9 * rt.scene.dt || return (pos = s.r, vel = s.v, q = q, ω = s.ω)
@@ -144,7 +144,7 @@ end
 
 # The chief's gravity at engine time t (no feedback acceleration yet), evaluated once per right-hand-side call.
 # ponytail: one gravity evaluation per owned spacecraft per RHS call; share one per owner if a harmonics field makes it matter.
-function EP.external_acceleration(rt::ProximitySceneRuntime, ::Int, t::Float64)
+function EP.external_acceleration(rt::ProximitySceneRuntime, t::Float64, ::Int)
     τ = max(t - rt.scene.n * rt.scene.dt, 0.0)
     return _chief_gravity(rt, τ, τ)
 end
@@ -153,8 +153,8 @@ end
     scene_body_pose_save_field(name) -> SaveField
 
 A save field `scene_pose_<name>` with the absolute pose of the MJCF body `name` (for example an arm link that
-no spacecraft carries): inertial COM position (3) and the SpaceAGORA attitude quaternion (4, scalar-last, body
-to inertial), written as columns `scene_pose_<name>_1..7`. The getter reads the current last completed
+no spacecraft carries): inertial COM position (3) and the SpaceAGORA attitude quaternion (4, scalar last,
+`v_body = rot(q) * v_inertial`), written as columns `scene_pose_<name>_1..7`. The getter reads the current last completed
 native pose when the saving callback executes. It does not reconstruct the pose at the requested row
 time: an interpolated output row can have an earlier timestamp. Align accepted solver steps with native
 output boundaries for time-matched comparisons; setting `data_rate` alone is insufficient.
