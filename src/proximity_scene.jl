@@ -92,7 +92,8 @@ required when an effector needs the planet frame (J2, harmonics). `initial_state
 [`SceneBodyState`](@ref) per free-root body.
 
 Every scene owns its `mjModel` and `mjData`; nothing is shared between scenes and no global state is
-written, so scenes can be stepped on separate tasks. Native memory is freed by finalizers.
+written, so scenes can be stepped on separate tasks. `close(scene)` frees that native memory as soon as the
+scene is no longer needed; otherwise it is freed only when the garbage collector finalizes the scene.
 """
 mutable struct ProximityScene{E <: Tuple, F}
     model::Binding.MjModel
@@ -181,6 +182,7 @@ repeated resets reproduce the same trajectory bit for bit. Passing new states re
 vectorized runner uses to randomize episodes without rebuilding models).
 """
 function scene_reset!(scene::ProximityScene, states::AbstractVector{SceneBodyState}=scene.initial_states)
+    _check_open(scene)
     B = Binding
     m, d = scene.model, scene.data
     by_body = Dict{Int, SceneBodyState}()
@@ -258,8 +260,8 @@ scene_chief(scene::ProximityScene) = (scene.R, scene.V)
 """MJCF names of the scene bodies; body `i` is `scene_body_names(scene)[i]` (the world body is excluded)."""
 scene_body_names(scene::ProximityScene) = copy(scene.names)
 
-"""View of MuJoCo's `ctrl` vector, for actuator commands."""
-scene_ctrl(scene::ProximityScene) = scene.ctrl
+"""View of MuJoCo's `ctrl` vector, for actuator commands. The view points into native memory: do not use it after `close(scene)`."""
+scene_ctrl(scene::ProximityScene) = (_check_open(scene); scene.ctrl)
 
 function _refresh!(scene::ProximityScene)
     scene.fresh || (Binding.forward!(scene.model, scene.data); scene.fresh = true)
@@ -274,6 +276,7 @@ Absolute inertial state of body `i`: COM position `R + xipos`, COM velocity `V +
 stores; read exactly from the free joint for a free-root body) and the same rate in world axes `ω_world`.
 """
 function scene_body_state(scene::ProximityScene, i::Integer)
+    _check_open(scene)
     1 <= i <= scene.nb || throw(BoundsError(scene.names, i))
     _refresh!(scene)
     Binding.body_velocity!(scene.vel6, scene.model, scene.data, i)
@@ -290,6 +293,7 @@ function scene_body_state(scene::ProximityScene, i::Integer)
     return (r = r, v = v, q = q, ω = ω, ω_world = ω_world)
 end
 function scene_body_state(scene::ProximityScene, name::AbstractString)
+    _check_open(scene)
     i = findfirst(==(name), scene.names)
     i === nothing && throw(ArgumentError("no body named '$name'"))
     return scene_body_state(scene, i)
@@ -359,6 +363,7 @@ Order: `mj_step1` (fresh kinematics) -> wrenches from those kinematics and the c
 `xfrc_applied` -> `mj_step2` -> chief RK4 from `R_n` to `R_{n+1}` -> `n += 1`.
 """
 function scene_step!(scene::ProximityScene; external_forces::Union{Nothing, AbstractMatrix{<:Real}}=nothing)
+    _check_open(scene)
     B = Binding
     nb = scene.nb
     if external_forces !== nothing
@@ -404,6 +409,7 @@ end
 
 """Snapshot the restorable state of the scene as a [`SceneState`](@ref)."""
 function scene_state(scene::ProximityScene)
+    _check_open(scene)
     buf = Vector{Float64}(undef, Binding.state_size(scene.model))
     Binding.get_state!(buf, scene.model, scene.data)
     return SceneState(scene.n, scene.R, scene.V, buf)
@@ -411,6 +417,7 @@ end
 
 """Restore a [`SceneState`](@ref) taken from a scene of the same MJCF model."""
 function scene_set_state!(scene::ProximityScene, st::SceneState)
+    _check_open(scene)
     length(st.mj) == Binding.state_size(scene.model) || throw(DimensionMismatch(
         "state has $(length(st.mj)) MuJoCo entries, the scene needs $(Binding.state_size(scene.model))"))
     Binding.set_state!(scene.model, scene.data, copy(st.mj))
@@ -424,8 +431,52 @@ Base.deepcopy_internal(scene::ProximityScene, dict::IdDict) = get!(() -> copy(sc
 
 """An independent scene with its own copied `mjModel` and fresh `mjData`, at the same state."""
 function Base.copy(scene::ProximityScene)
+    _check_open(scene)
     other = _assemble(Binding.copy_model(scene.model), scene.dt, scene.integrator, scene.planet, scene.effectors,
         scene.planet_rotation, scene.t0, scene.initial_states)
     scene_set_state!(other, scene_state(scene))
     return other
+end
+
+# --- native memory ---------------------------------------------------------------------------------------
+
+"""
+    close(scene::ProximityScene)
+
+Free the scene's native `mjModel` and `mjData` now instead of when the garbage collector finalizes the
+scene. Julia's collector cannot see that memory, so a loop that drops scenes (copies, rebuilt episodes)
+keeps all of them until a collection happens to run; closing each scene when done releases it at once.
+Idempotent. Afterwards every call that reaches native memory throws an `InvalidStateException`, while
+`scene_time`, `scene_chief` and `scene_body_names` still return the last values. Views returned earlier by
+[`scene_ctrl`](@ref) point into the freed memory and must not be used. Do not close a scene while another
+task steps it. Closing a scene does not affect its copies.
+"""
+function Base.close(scene::ProximityScene)
+    # Swap out the views first, so no field of the scene points into the memory freed below. Every step is
+    # idempotent, and each owner is closed on its own: either may already have been closed through the binding.
+    scene.mass = Float64[]; scene.qpos = Float64[]; scene.qvel = Float64[]; scene.ctrl = Float64[]
+    scene.xfrc = zeros(6, 0); scene.xipos = zeros(3, 0); scene.xquat = zeros(4, 0)
+    close(scene.data)
+    close(scene.model)
+    return nothing
+end
+
+"""`isopen(scene)`: whether the scene still owns its native model and data (false after `close`)."""
+Base.isopen(scene::ProximityScene) = isopen(scene.model) && isopen(scene.data)
+
+@noinline _closed_scene() = throw(InvalidStateException("the ProximityScene is closed", :closed))
+@inline _check_open(scene::ProximityScene) = (isopen(scene) || _closed_scene(); nothing)
+
+"""
+    scene_arena_use(scene) -> (size, peak)
+
+MuJoCo arena of the scene's `mjData`, in bytes: its fixed `size` and the `peak` used since the scene was
+built, copied or last reset. The arena holds MuJoCo's stack and its contact and constraint arrays. Its
+size comes from `<size memory="..."/>` in the MJCF, or MuJoCo's default when absent, and copies keep it.
+MuJoCo terminates the process when a step overflows the arena, so a smaller arena should be sized from the
+peak of a representative worst-case run, with a margin.
+"""
+function scene_arena_use(scene::ProximityScene)
+    _check_open(scene)
+    return (size = Binding.arena_size(scene.data), peak = Binding.arena_peak(scene.data))
 end

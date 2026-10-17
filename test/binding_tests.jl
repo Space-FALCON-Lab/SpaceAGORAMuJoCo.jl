@@ -99,3 +99,48 @@ end
     @test B.warning_count(d, B.WARN_BADQPOS) == 0 && B.warning_count(d, B.WARN_BADQVEL) == 0
     @test sum(B.warning_count(d, w) for w in 0:6) == 1    # no other slot aliases the BADQACC counter
 end
+
+
+# mjData.narena (offset 0) is fixed by <size memory>; mjData.maxuse_arena (offset 72) is the high-water mark of
+# the whole arena, so in a contact scene it exceeds maxuse_stack (offset 64), the field next to it that holds
+# the stack alone. mj_resetData clears it.
+@testset "binding: arena size and peak" begin
+    B = SpaceAGORAMuJoCo.Binding
+    # boxes stacked 1 cm apart on a plane: they fall into contact within the first steps
+    pile(n, memory) = """<mujoco><option gravity="0 0 -9.81"/><size memory="$memory"/><worldbody><geom type="plane" size="5 5 0.1"/>
+        $(join(["<body pos='0 0 $(1.01k)'><freejoint/><geom type='box' size='0.5 0.5 0.5' mass='1'/></body>" for k in 0:n - 1]))
+        </worldbody></mujoco>"""
+    m = B.load_xml_string(pile(5, "1M"))
+    d = B.MjData(m)
+    @test B.arena_size(d) == 1024^2
+    @test B.arena_peak(d) == 0
+    for _ in 1:200
+        B.step1!(m, d); B.step2!(m, d)
+    end
+    peak = B.arena_peak(d)
+    @test 0 < peak <= B.arena_size(d)
+    @test peak > unsafe_load(Ptr{Int64}(d.ptr + 64))
+    B.reset_data!(m, d)
+    @test B.arena_peak(d) == 0
+    # too small an arena is caught when the model is compiled (an overflow during a step is not: MuJoCo exits)
+    @test_throws ErrorException B.load_xml_string(pile(10, "4K"))
+end
+
+@testset "binding: close frees once, and closed handles refuse every call" begin
+    B = SpaceAGORAMuJoCo.Binding
+    m = B.load_xml_string("<mujoco><worldbody><body><freejoint/><inertial pos='0 0 0' mass='1' diaginertia='1 1 1'/></body></worldbody></mujoco>")
+    d = B.MjData(m)
+    m2 = B.copy_model(m); d2 = B.MjData(m2)
+    @test isopen(m) && isopen(d)
+    close(d); close(d); close(m); close(m)
+    @test !isopen(m) && !isopen(d) && m.ptr == C_NULL && d.ptr == C_NULL
+    @test_throws InvalidStateException B.step1!(m, d)
+    @test_throws InvalidStateException B.copy_model(m)        # a null source would crash mj_copyModel
+    @test_throws InvalidStateException B.MjData(m)
+    @test_throws InvalidStateException B.nq(m)
+    @test_throws InvalidStateException B.qpos(m2, d)
+    @test_throws InvalidStateException B.arena_size(d)
+    GC.gc(true); GC.gc(true)                                   # finalizers of closed owners do nothing
+    B.step1!(m2, d2); B.step2!(m2, d2)                         # the copy is independent
+    @test B.data_time(d2) > 0
+end

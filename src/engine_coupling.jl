@@ -21,6 +21,9 @@ and `deepcopy` of a configuration copies the native model rather than its pointe
 planet drive the owned bodies and should match the run's dynamics; the engine's dynamic effectors do not act on
 owned spacecraft. `mass_rtol`, when given, refuses a run whose spacecraft mass differs from the MJCF body mass
 by more than that relative tolerance (no check otherwise).
+
+Each run's copy is freed when the garbage collector finalizes it. Closing the template does not affect runs
+that have already copied it; a closed template is refused.
 """
 struct ProximitySceneDynamics{S <: ProximityScene} <: EP.AbstractExternalPropagator
     scene::S
@@ -30,6 +33,7 @@ struct ProximitySceneDynamics{S <: ProximityScene} <: EP.AbstractExternalPropaga
 end
 
 function ProximitySceneDynamics(scene::ProximityScene, pairs::Pair{<:Integer, <:AbstractString}...; mass_rtol::Union{Nothing, Real}=nothing)
+    _check_template(scene)
     isempty(pairs) && throw(ArgumentError("ProximitySceneDynamics needs at least one spacecraft => body pair"))
     sc = Int[first(p) for p in pairs]
     bodies = String[last(p) for p in pairs]
@@ -59,6 +63,7 @@ EP.external_spacecraft(ep::ProximitySceneDynamics) = copy(ep.spacecraft)
 EP.external_step(ep::ProximitySceneDynamics) = ep.scene.dt
 
 function EP.external_preflight(ep::ProximitySceneDynamics, args)
+    _check_template(ep.scene)
     ep.mass_rtol === nothing && return nothing
     for (i, b) in zip(ep.spacecraft, ep.bodies)
         sc = args.dynamics_model.spacecraft[i]
@@ -70,11 +75,16 @@ function EP.external_preflight(ep::ProximitySceneDynamics, args)
     return nothing
 end
 
+# A closed template is a configuration error at setup, reported the way the core contract expects.
+_check_template(scene::ProximityScene) =
+    isopen(scene) ? nothing : throw(ArgumentError("the ProximityScene template is closed; build a new scene for this run"))
+
 # A scene copy with its own native model, ready to be reset to the run's initial state.
 _fresh_copy(s::ProximityScene) = _assemble(Binding.copy_model(s.model), s.dt, s.integrator, s.planet, s.effectors,
     s.planet_rotation, s.t0, s.initial_states)
 
 function EP.external_prepare(ep::ProximitySceneDynamics, args, u0)
+    _check_template(ep.scene)
     scene = _fresh_copy(ep.scene)
     states = SceneBodyState[]
     for (i, b) in zip(ep.spacecraft, ep.bodies)

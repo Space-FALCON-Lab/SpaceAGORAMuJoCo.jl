@@ -192,8 +192,8 @@ state, including actuator and warm-start data. Restore it only into a scene with
 the same model definition, step, epoch and gravity settings; it is not a general
 interchange format between MJCF models or native library versions.
 `scene_reset!(scene, new_states)` also replaces the
-stored initial states used by subsequent resets. Native memory is released by
-finalizers; avoid retaining many unused scene copies in a long study.
+stored initial states used by subsequent resets. Each copy owns separate native
+memory; close the copies you no longer need (see [Native memory](#native-memory)).
 
 For a standalone non-gravitational force, construct a matrix with one column per
 entry in `scene_body_names(scene)`, including articulated children. For example,
@@ -329,6 +329,74 @@ setting `data_rate` is insufficient. The same helper can save an articulated
 child body's pose. Use distinct body names across multiple scene owners when
 selecting bodies this way.
 
+## Native memory
+
+Each scene owns a MuJoCo model and data in native memory that Julia's garbage
+collector does not see. A loop that drops scenes, such as discarded `copy`
+branches or rebuilt episodes, therefore keeps their native memory until a
+collection happens to run, and the loop itself may never prompt one. Call
+`close(scene)` when a scene is no longer needed. Continuing `two_cubes.jl`:
+
+```julia
+separations = Float64[]
+for thrust in (0.005, 0.01, 0.02)
+    branch = copy(scene)
+    kick = zeros(3, length(body_names))
+    kick[1, chaser_column] = thrust
+    try
+        for _ in 1:500
+            scene_step!(branch; external_forces=kick)
+        end
+        a = scene_body_state(branch, "chaser")
+        b = scene_body_state(branch, "target")
+        push!(separations, norm(b.r - a.r))
+    finally
+        close(branch)
+    end
+end
+```
+
+`close` is idempotent. Afterwards, stepping, resetting, copying, reading body
+states or saving the state of that scene throws an `InvalidStateException`;
+`scene_time`, `scene_chief` and `scene_body_names` still return the last values.
+A vector obtained earlier from `scene_ctrl` points into the freed memory and must
+not be used. Closing a scene does not affect its copies. Do not close a scene
+while another task is stepping it. A scene that is never closed is released by
+its finalizer once the garbage collector reclaims it.
+
+Most of a scene's native memory is the MuJoCo arena of its data: a fixed block
+that holds MuJoCo's stack and its contact and constraint arrays. Without a
+`<size memory="..."/>` element MuJoCo reserves a default sized for general
+models, far larger than a small proximity scene uses. A smaller arena is set in
+the MJCF, and `copy` keeps it:
+
+```xml
+<mujoco>
+  <size memory="1M"/>
+  <worldbody>
+    ...
+  </worldbody>
+</mujoco>
+```
+
+Size it from a measurement. `scene_arena_use(scene)` returns the arena `size` and
+the `peak` use since the scene was built, copied or last reset, both in bytes.
+Run a representative worst case, with the most contacts the study expects, and
+leave a generous margin above the peak. **An arena too small for a step
+terminates the Julia process.** MuJoCo reports the overflow through its error
+handler, which exits the process, and this package does not replace that handler
+because it is shared by everything in the process. The default arena has the
+same limit, which a scene with very many contacts can reach. An arena too small
+for the model itself is reported as an ordinary error when the model is
+compiled.
+
+Inside SpaceAGORA, every `run_simulation` copies the template scene, and the
+garbage collector releases that copy after the run; the coupling has no hook to
+close it when the run ends. In long or threaded Monte Carlo campaigns, a
+template with a measured `<size memory="..."/>` keeps those pending copies
+small. Closing the template does not affect runs that have already copied it.
+A closed template is refused at setup.
+
 ## Scope and practical limits
 
 Coupled propagation currently supports solver modes `:tsit5`, `:auto_stiff`,
@@ -352,7 +420,8 @@ entries; MuJoCo contacts concern the geometry actually present in the scene,
 not an implicit planetary surface.
 
 Standalone snapshots do not enable core checkpoint/resume, which is refused
-for external owners. Threaded Monte Carlo runs use separate native scene copies;
+for external owners. Threaded Monte Carlo runs use separate native scene copies
+(see [Native memory](#native-memory));
 process-pool campaigns and `run_constellation_ensemble` are unsupported because
 native state is not a serializable worker payload. The flat RHS route is also
 refused. If the runner reports a native numerical-instability reset, treat that

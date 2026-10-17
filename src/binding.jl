@@ -7,8 +7,9 @@ offsets taken from the 3.11.0 headers with `offsetof` (`mujoco/mjmodel.h`, `mjda
 Those offsets are valid for exactly that version; `load!` refuses any other `mj_version()`. Moving to
 another MuJoCo release means regenerating `OFFSETS` and nothing else.
 
-Pointers are plain `Ptr{Cvoid}`; ownership lives in `MjModel` and `MjData`, whose finalizers free the
-native memory.
+Pointers are plain `Ptr{Cvoid}`; ownership lives in `MjModel` and `MjData`, freed by `close` or, failing
+that, by their finalizers. Every call below reads the pointer through `_ptr`, which throws once the owner
+is closed, so no call reaches MuJoCo with a freed handle.
 """
 module Binding
 
@@ -25,7 +26,8 @@ const OFFSETS = (
         jnt_type = 2104, jnt_qposadr = 2112, jnt_dofadr = 2120,
         body_mass = 1944, body_inertia = 1960, opt = 792),
     opt = (timestep = 0, gravity = 56, integrator = 248),
-    data = (warning = 160264, time = 160640, qpos = 160680, qvel = 160688, act = 160696, ctrl = 160728,
+    data = (narena = 0, maxuse_arena = 72,
+        warning = 160264, time = 160640, qpos = 160680, qvel = 160688, act = 160696, ctrl = 160728,
         xfrc_applied = 160744, eq_active = 160752, xquat = 160840, xipos = 160856, ximat = 160864),
 )
 # mjWarningStat is {int lastinfo; int number}; mjtWarning enum values from mujoco/mjtype.h, mjNWARNING = 7.
@@ -99,27 +101,40 @@ mutable struct MjModel
     ptr::Ptr{Cvoid}
     function MjModel(ptr::Ptr{Cvoid})
         ptr == C_NULL && error("MuJoCo returned a null model")
-        self = new(ptr)
-        finalizer(self) do m
-            m.ptr == C_NULL || ccall(api().fn.mj_deleteModel, Cvoid, (Ptr{Cvoid},), m.ptr)
-            m.ptr = C_NULL
-        end
-        return self
+        return finalizer(_free!, new(ptr))
     end
 end
 
 mutable struct MjData
     ptr::Ptr{Cvoid}
     function MjData(model::MjModel)
-        ptr = ccall(api().fn.mj_makeData, Ptr{Cvoid}, (Ptr{Cvoid},), model.ptr)
+        ptr = ccall(api().fn.mj_makeData, Ptr{Cvoid}, (Ptr{Cvoid},), _ptr(model))
         ptr == C_NULL && error("mj_makeData failed")
-        self = new(ptr)
-        finalizer(self) do d
-            d.ptr == C_NULL || ccall(api().fn.mj_deleteData, Cvoid, (Ptr{Cvoid},), d.ptr)
-            d.ptr = C_NULL
-        end
-        return self
+        return finalizer(_free!, new(ptr))
     end
+end
+
+# Shared by `close` and the finalizer: free once, then keep a null pointer so the other one does nothing.
+function _free!(m::MjModel)
+    m.ptr == C_NULL || ccall(api().fn.mj_deleteModel, Cvoid, (Ptr{Cvoid},), m.ptr)
+    m.ptr = C_NULL
+    return nothing
+end
+function _free!(d::MjData)
+    d.ptr == C_NULL || ccall(api().fn.mj_deleteData, Cvoid, (Ptr{Cvoid},), d.ptr)
+    d.ptr = C_NULL
+    return nothing
+end
+
+"""Free the native object now instead of at garbage collection. Idempotent; later calls on it throw."""
+Base.close(x::Union{MjModel, MjData}) = _free!(x)
+Base.isopen(x::Union{MjModel, MjData}) = x.ptr != C_NULL
+
+@noinline _closed(x) = throw(InvalidStateException("the MuJoCo $(x isa MjModel ? "model" : "data") is closed", :closed))
+@inline function _ptr(x::Union{MjModel, MjData})
+    p = x.ptr
+    p == C_NULL && _closed(x)
+    return p
 end
 
 # --- loading ----------------------------------------------------------------------------------------
@@ -145,36 +160,36 @@ function load_xml_string(xml::AbstractString)
     end
 end
 
-copy_model(model::MjModel) = MjModel(ccall(api().fn.mj_copyModel, Ptr{Cvoid}, (Ptr{Cvoid}, Ptr{Cvoid}), C_NULL, model.ptr))
+copy_model(model::MjModel) = MjModel(ccall(api().fn.mj_copyModel, Ptr{Cvoid}, (Ptr{Cvoid}, Ptr{Cvoid}), C_NULL, _ptr(model)))
 
 # --- stepping and state -----------------------------------------------------------------------------
 
-step1!(m::MjModel, d::MjData) = ccall(api().fn.mj_step1, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), m.ptr, d.ptr)
-step2!(m::MjModel, d::MjData) = ccall(api().fn.mj_step2, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), m.ptr, d.ptr)
-forward!(m::MjModel, d::MjData) = ccall(api().fn.mj_forward, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), m.ptr, d.ptr)
-reset_data!(m::MjModel, d::MjData) = ccall(api().fn.mj_resetData, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), m.ptr, d.ptr)
-state_size(m::MjModel, sig::Integer=STATE_INTEGRATION) = Int(ccall(api().fn.mj_stateSize, Cint, (Ptr{Cvoid}, Cint), m.ptr, sig))
+step1!(m::MjModel, d::MjData) = ccall(api().fn.mj_step1, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), _ptr(m), _ptr(d))
+step2!(m::MjModel, d::MjData) = ccall(api().fn.mj_step2, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), _ptr(m), _ptr(d))
+forward!(m::MjModel, d::MjData) = ccall(api().fn.mj_forward, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), _ptr(m), _ptr(d))
+reset_data!(m::MjModel, d::MjData) = ccall(api().fn.mj_resetData, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), _ptr(m), _ptr(d))
+state_size(m::MjModel, sig::Integer=STATE_INTEGRATION) = Int(ccall(api().fn.mj_stateSize, Cint, (Ptr{Cvoid}, Cint), _ptr(m), sig))
 get_state!(buf::Vector{Float64}, m::MjModel, d::MjData, sig::Integer=STATE_INTEGRATION) =
-    (ccall(api().fn.mj_getState, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Float64}, Cint), m.ptr, d.ptr, buf, sig); buf)
+    (ccall(api().fn.mj_getState, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Float64}, Cint), _ptr(m), _ptr(d), buf, sig); buf)
 set_state!(m::MjModel, d::MjData, buf::Vector{Float64}, sig::Integer=STATE_INTEGRATION) =
-    (ccall(api().fn.mj_setState, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Float64}, Cint), m.ptr, d.ptr, buf, sig); nothing)
+    (ccall(api().fn.mj_setState, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Float64}, Cint), _ptr(m), _ptr(d), buf, sig); nothing)
 name2id(m::MjModel, objtype::Integer, name::AbstractString) =
-    Int(ccall(api().fn.mj_name2id, Cint, (Ptr{Cvoid}, Cint, Cstring), m.ptr, objtype, name))
+    Int(ccall(api().fn.mj_name2id, Cint, (Ptr{Cvoid}, Cint, Cstring), _ptr(m), objtype, name))
 function id2name(m::MjModel, objtype::Integer, id::Integer)
-    p = ccall(api().fn.mj_id2name, Cstring, (Ptr{Cvoid}, Cint, Cint), m.ptr, objtype, id)
+    p = ccall(api().fn.mj_id2name, Cstring, (Ptr{Cvoid}, Cint, Cint), _ptr(m), objtype, id)
     return p == C_NULL ? "" : unsafe_string(p)
 end
-total_mass(m::MjModel) = ccall(api().fn.mj_getTotalmass, Float64, (Ptr{Cvoid},), m.ptr)
+total_mass(m::MjModel) = ccall(api().fn.mj_getTotalmass, Float64, (Ptr{Cvoid},), _ptr(m))
 
 """6D velocity (angular; linear) of a body about its center of mass, in world axes. Needs fresh `cvel`."""
 function body_velocity!(res::Vector{Float64}, m::MjModel, d::MjData, body::Integer)
-    ccall(api().fn.mj_objectVelocity, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}, Cint, Cint, Ptr{Float64}, Cint), m.ptr, d.ptr, OBJ_BODY, body, res, 0)
+    ccall(api().fn.mj_objectVelocity, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}, Cint, Cint, Ptr{Float64}, Cint), _ptr(m), _ptr(d), OBJ_BODY, body, res, 0)
     return res
 end
 
 # --- field access -----------------------------------------------------------------------------------
 
-@inline _int(m::MjModel, off) = Int(unsafe_load(Ptr{Cint}(m.ptr + off)))
+@inline _int(m::MjModel, off) = Int(unsafe_load(Ptr{Cint}(_ptr(m) + off)))
 @inline _arr(base::Ptr{Cvoid}, off, ::Type{T}, n) where {T} =
     n == 0 ? T[] : unsafe_wrap(Array, unsafe_load(Ptr{Ptr{T}}(base + off)), n; own = false)
 
@@ -186,36 +201,40 @@ nbody(m::MjModel) = _int(m, OFFSETS.model.nbody)
 njnt(m::MjModel) = _int(m, OFFSETS.model.njnt)
 neq(m::MjModel) = _int(m, OFFSETS.model.neq)
 
-body_mass(m::MjModel) = _arr(m.ptr, OFFSETS.model.body_mass, Float64, nbody(m))
-body_inertia(m::MjModel) = _arr(m.ptr, OFFSETS.model.body_inertia, Float64, 3 * nbody(m))
-body_rootid(m::MjModel) = _arr(m.ptr, OFFSETS.model.body_rootid, Cint, nbody(m))
-body_jntnum(m::MjModel) = _arr(m.ptr, OFFSETS.model.body_jntnum, Cint, nbody(m))
-body_jntadr(m::MjModel) = _arr(m.ptr, OFFSETS.model.body_jntadr, Cint, nbody(m))
-body_dofnum(m::MjModel) = _arr(m.ptr, OFFSETS.model.body_dofnum, Cint, nbody(m))
-jnt_type(m::MjModel) = _arr(m.ptr, OFFSETS.model.jnt_type, Cint, njnt(m))
-jnt_qposadr(m::MjModel) = _arr(m.ptr, OFFSETS.model.jnt_qposadr, Cint, njnt(m))
-jnt_dofadr(m::MjModel) = _arr(m.ptr, OFFSETS.model.jnt_dofadr, Cint, njnt(m))
+body_mass(m::MjModel) = _arr(_ptr(m), OFFSETS.model.body_mass, Float64, nbody(m))
+body_inertia(m::MjModel) = _arr(_ptr(m), OFFSETS.model.body_inertia, Float64, 3 * nbody(m))
+body_rootid(m::MjModel) = _arr(_ptr(m), OFFSETS.model.body_rootid, Cint, nbody(m))
+body_jntnum(m::MjModel) = _arr(_ptr(m), OFFSETS.model.body_jntnum, Cint, nbody(m))
+body_jntadr(m::MjModel) = _arr(_ptr(m), OFFSETS.model.body_jntadr, Cint, nbody(m))
+body_dofnum(m::MjModel) = _arr(_ptr(m), OFFSETS.model.body_dofnum, Cint, nbody(m))
+jnt_type(m::MjModel) = _arr(_ptr(m), OFFSETS.model.jnt_type, Cint, njnt(m))
+jnt_qposadr(m::MjModel) = _arr(_ptr(m), OFFSETS.model.jnt_qposadr, Cint, njnt(m))
+jnt_dofadr(m::MjModel) = _arr(_ptr(m), OFFSETS.model.jnt_dofadr, Cint, njnt(m))
 
-timestep(m::MjModel) = unsafe_load(Ptr{Float64}(m.ptr + OFFSETS.model.opt + OFFSETS.opt.timestep))
-set_timestep!(m::MjModel, dt::Float64) = unsafe_store!(Ptr{Float64}(m.ptr + OFFSETS.model.opt + OFFSETS.opt.timestep), dt)
-integrator(m::MjModel) = Int(unsafe_load(Ptr{Cint}(m.ptr + OFFSETS.model.opt + OFFSETS.opt.integrator)))
-set_integrator!(m::MjModel, i::Integer) = unsafe_store!(Ptr{Cint}(m.ptr + OFFSETS.model.opt + OFFSETS.opt.integrator), Cint(i))
-gravity(m::MjModel) = ntuple(i -> unsafe_load(Ptr{Float64}(m.ptr + OFFSETS.model.opt + OFFSETS.opt.gravity), i), 3)
+timestep(m::MjModel) = unsafe_load(Ptr{Float64}(_ptr(m) + OFFSETS.model.opt + OFFSETS.opt.timestep))
+set_timestep!(m::MjModel, dt::Float64) = unsafe_store!(Ptr{Float64}(_ptr(m) + OFFSETS.model.opt + OFFSETS.opt.timestep), dt)
+integrator(m::MjModel) = Int(unsafe_load(Ptr{Cint}(_ptr(m) + OFFSETS.model.opt + OFFSETS.opt.integrator)))
+set_integrator!(m::MjModel, i::Integer) = unsafe_store!(Ptr{Cint}(_ptr(m) + OFFSETS.model.opt + OFFSETS.opt.integrator), Cint(i))
+gravity(m::MjModel) = ntuple(i -> unsafe_load(Ptr{Float64}(_ptr(m) + OFFSETS.model.opt + OFFSETS.opt.gravity), i), 3)
 set_gravity!(m::MjModel, g) = for i in 1:3
-    unsafe_store!(Ptr{Float64}(m.ptr + OFFSETS.model.opt + OFFSETS.opt.gravity), Float64(g[i]), i)
+    unsafe_store!(Ptr{Float64}(_ptr(m) + OFFSETS.model.opt + OFFSETS.opt.gravity), Float64(g[i]), i)
 end
 
-data_time(d::MjData) = unsafe_load(Ptr{Float64}(d.ptr + OFFSETS.data.time))
-qpos(m::MjModel, d::MjData) = _arr(d.ptr, OFFSETS.data.qpos, Float64, nq(m))
-qvel(m::MjModel, d::MjData) = _arr(d.ptr, OFFSETS.data.qvel, Float64, nv(m))
-ctrl(m::MjModel, d::MjData) = _arr(d.ptr, OFFSETS.data.ctrl, Float64, nu(m))
-xfrc_applied(m::MjModel, d::MjData) = unsafe_wrap(Array, unsafe_load(Ptr{Ptr{Float64}}(d.ptr + OFFSETS.data.xfrc_applied)), (6, nbody(m)); own = false)
-xipos(m::MjModel, d::MjData) = unsafe_wrap(Array, unsafe_load(Ptr{Ptr{Float64}}(d.ptr + OFFSETS.data.xipos)), (3, nbody(m)); own = false)
-xquat(m::MjModel, d::MjData) = unsafe_wrap(Array, unsafe_load(Ptr{Ptr{Float64}}(d.ptr + OFFSETS.data.xquat)), (4, nbody(m)); own = false)
+data_time(d::MjData) = unsafe_load(Ptr{Float64}(_ptr(d) + OFFSETS.data.time))
+qpos(m::MjModel, d::MjData) = _arr(_ptr(d), OFFSETS.data.qpos, Float64, nq(m))
+qvel(m::MjModel, d::MjData) = _arr(_ptr(d), OFFSETS.data.qvel, Float64, nv(m))
+ctrl(m::MjModel, d::MjData) = _arr(_ptr(d), OFFSETS.data.ctrl, Float64, nu(m))
+xfrc_applied(m::MjModel, d::MjData) = unsafe_wrap(Array, unsafe_load(Ptr{Ptr{Float64}}(_ptr(d) + OFFSETS.data.xfrc_applied)), (6, nbody(m)); own = false)
+xipos(m::MjModel, d::MjData) = unsafe_wrap(Array, unsafe_load(Ptr{Ptr{Float64}}(_ptr(d) + OFFSETS.data.xipos)), (3, nbody(m)); own = false)
+xquat(m::MjModel, d::MjData) = unsafe_wrap(Array, unsafe_load(Ptr{Ptr{Float64}}(_ptr(d) + OFFSETS.data.xquat)), (4, nbody(m)); own = false)
 """Times MuJoCo raised warning `w` (a `WARN_*` index) since the counter was last cleared."""
-warning_count(d::MjData, w::Integer) = Int(unsafe_load(Ptr{Cint}(d.ptr + OFFSETS.data.warning + WARNING_STRIDE * w + WARNING_NUMBER)))
+warning_count(d::MjData, w::Integer) = Int(unsafe_load(Ptr{Cint}(_ptr(d) + OFFSETS.data.warning + WARNING_STRIDE * w + WARNING_NUMBER)))
 """Body orientation matrices (body to world), row-major 3x3 per body: a `9 x nbody` array."""
-ximat(m::MjModel, d::MjData) = unsafe_wrap(Array, unsafe_load(Ptr{Ptr{Float64}}(d.ptr + OFFSETS.data.ximat)), (9, nbody(m)); own = false)
-eq_active(m::MjModel, d::MjData) = _arr(d.ptr, OFFSETS.data.eq_active, UInt8, neq(m))
+ximat(m::MjModel, d::MjData) = unsafe_wrap(Array, unsafe_load(Ptr{Ptr{Float64}}(_ptr(d) + OFFSETS.data.ximat)), (9, nbody(m)); own = false)
+eq_active(m::MjModel, d::MjData) = _arr(_ptr(d), OFFSETS.data.eq_active, UInt8, neq(m))
+"""Size of the data's arena (stack plus contact and constraint arrays) in bytes, fixed when the data is made."""
+arena_size(d::MjData) = Int(unsafe_load(Ptr{Int64}(_ptr(d) + OFFSETS.data.narena)))
+"""High-water mark of the whole arena in bytes since the data was made or last reset."""
+arena_peak(d::MjData) = Int(unsafe_load(Ptr{Int64}(_ptr(d) + OFFSETS.data.maxuse_arena)))
 
 end # module Binding

@@ -452,4 +452,18 @@ end
     arm_scene = ProximityScene(; mjcf_xml=ARM_XML, dt=0.05, planet=EARTH, gravity_effectors=effectors, initial_states=states(), planet_rotation=planet_rotation)
     @test "link" in scene_body_names(arm_scene)
     @test_throws ArgumentError ProximitySceneDynamics(arm_scene, 1 => "chaser", 2 => "link")
+    # a closed template: refused at construction and at validation; run_simulation's isolating deepcopy
+    # copies the template first, which reports the closed scene itself
+    shut = make_scene(effectors; dt=0.0125)
+    shut_cfg = engine_config(effectors, 10.0, 1.0; scene=shut)
+    close(shut)
+    @test refuses(() -> ProximitySceneDynamics(shut, 1 => "chaser", 2 => "target"), r"closed")
+    @test refused(shut_cfg, r"closed")
+    @test refuses(() -> SpaceAGORA.run_simulation(shut_cfg; isolate_state=false), r"closed")
+    @test_throws InvalidStateException SpaceAGORA.run_simulation(shut_cfg)
+    # closing the template after a configuration copied it leaves that copy runnable
+    open_scene = make_scene(effectors; dt=0.0125)
+    isolated = deepcopy(engine_config(effectors, 10.0, 1.0; scene=open_scene))
+    close(open_scene)
+    @test SpaceAGORA.run_simulation(isolated) === nothing
 end

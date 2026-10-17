@@ -117,17 +117,20 @@ end
     @test scene_chief(burn)[1] ≈ scene_body_state(burn, 1).r
 end
 
+# Memory malloc still has allocated: glibc mallinfo2 `uordblks` (all arenas) plus `hblkhd` (mmapped chunks).
+# mallinfo2 needs glibc 2.33 or later; with an older glibc the memory loops below still run but their bounds
+# are skipped (mallinfo's int fields wrap at 4 GiB).
+const MALLINFO2 = try cglobal(:mallinfo2) catch; C_NULL end
+allocated_mb() = MALLINFO2 == C_NULL ? NaN : (mi = ccall(MALLINFO2, NTuple{10, Csize_t}, ()); Int(mi[8] + mi[5]) / 2^20)
+
 @testset "native memory: repeated make/free neither leaks nor crashes" begin
-    # The leak signal is the memory malloc still has allocated: glibc mallinfo2 `uordblks` (all arenas) plus
-    # `hblkhd` (mmapped chunks). Process RSS is not one. Every mjData reserves a large arena that Julia's GC
-    # cannot see, so a cycle holds hundreds of them until a collection runs the finalizers; once they are
-    # freed glibc keeps the heap pages they touched, and how many depends on where the chunks landed. RSS
-    # follows that high-water mark and varies widely between runs with nothing leaked, so it is reported
-    # only. Dropping any one of the binding's frees (data, model, spec) leaves at least a model's worth of
-    # memory per scene allocated, several times this bound. mallinfo2 needs glibc 2.33 or later; with an
-    # older glibc the loop still runs but the bound is skipped (mallinfo's int fields wrap at 4 GiB).
-    mallinfo2 = try cglobal(:mallinfo2) catch; C_NULL end
-    allocated_mb() = mallinfo2 == C_NULL ? NaN : (mi = ccall(mallinfo2, NTuple{10, Csize_t}, ()); Int(mi[8] + mi[5]) / 2^20)
+    # The leak signal is the memory malloc still has allocated (`allocated_mb`). Process RSS is not one.
+    # Every mjData reserves a large arena that Julia's GC cannot see, so a cycle holds hundreds of them
+    # until a collection runs the finalizers; once they are freed glibc keeps the heap pages they touched,
+    # and how many depends on where the chunks landed. RSS follows that high-water mark and varies widely
+    # between runs with nothing leaked, so it is reported only. Dropping any one of the binding's frees
+    # (data, model, spec) leaves at least a model's worth of memory per scene allocated, several times
+    # this bound.
     rss_mb() = parse(Int, split(read("/proc/self/statm", String))[2]) * 4096 / 2^20
     cycle() = for _ in 1:150
         sc = make_scene((SM.InverseSquaredGravityModel(),); dt=0.05)
@@ -142,12 +145,115 @@ end
     end
     growth = allocated_mb() - before.allocated
     @info "Growth over 1200 scene make/free cycles (MB)" allocated = growth rss = rss_mb() - before.rss
-    if mallinfo2 == C_NULL
+    if MALLINFO2 == C_NULL
         @warn "glibc $(unsafe_string(ccall(:gnu_get_libc_version, Cstring, ()))) has no mallinfo2 (2.33 or later): allocated-memory bound not checked"
         @test_skip growth < 4
     else
         @test growth < 4
     end
+end
+
+@testset "native memory: close releases each scene at once" begin
+    # Without close these scenes stay allocated until a collection runs, and a loop like this one may run
+    # none: the peak would grow by a whole mjData per scene. With close it stays flat. The first cycle
+    # runs before the baseline so that compiling these calls does not count.
+    cycle!(n) = for _ in 1:n
+        sc = make_scene((SM.InverseSquaredGravityModel(),); dt=0.05)
+        run_steps!(sc, 3)
+        cp = copy(sc)
+        run_steps!(cp, 3)
+        close(cp); close(sc)
+    end
+    cycle!(1); GC.gc(true); GC.gc(true)
+    before = allocated_mb()
+    peak = 0.0
+    for _ in 1:150
+        cycle!(1)
+        peak = max(peak, allocated_mb() - before)
+    end
+    @info "Peak allocated growth over 150 scene make/copy/close cycles without a collection (MB)" peak
+    if MALLINFO2 == C_NULL
+        @test_skip peak < 4                  # no mallinfo2: warned by the testset above
+    else
+        @test peak < 4
+    end
+end
+
+@testset "close: idempotent, and a closed scene refuses every native call" begin
+    sc = make_scene((SM.InverseSquaredGravityModel(),); dt=0.05)
+    run_steps!(sc, 3)
+    cp = copy(sc)
+    snapshot = scene_state(cp)
+    t, chief, names = scene_time(sc), scene_chief(sc), scene_body_names(sc)
+    @test isopen(sc)
+    close(sc); close(sc)
+    @test !isopen(sc) && !isopen(sc.model) && !isopen(sc.data)
+    @test_throws InvalidStateException scene_step!(sc)
+    @test_throws InvalidStateException scene_step!(sc; external_forces=zeros(3, 2))
+    @test_throws InvalidStateException scene_reset!(sc)
+    @test_throws InvalidStateException scene_reset!(sc, states())
+    @test_throws InvalidStateException scene_state(sc)
+    @test_throws InvalidStateException scene_set_state!(sc, snapshot)
+    @test_throws InvalidStateException scene_body_state(sc, 1)
+    @test_throws InvalidStateException scene_body_state(sc, "chaser")
+    @test_throws InvalidStateException scene_ctrl(sc)
+    @test_throws InvalidStateException scene_arena_use(sc)
+    @test_throws InvalidStateException copy(sc)
+    @test_throws InvalidStateException deepcopy(sc)
+    # the binding refuses the closed handles too, so internal paths cannot reach freed memory either
+    @test_throws InvalidStateException Binding.forward!(sc.model, sc.data)
+    @test_throws InvalidStateException Binding.copy_model(sc.model)
+    # no field of the scene points into the freed memory any more
+    @test isempty(sc.qpos) && isempty(sc.qvel) && isempty(sc.ctrl) && isempty(sc.mass)
+    @test size(sc.xfrc) == (6, 0) && size(sc.xipos) == (3, 0) && size(sc.xquat) == (4, 0)
+    # values held on the Julia side stay readable
+    @test (scene_time(sc), scene_chief(sc), scene_body_names(sc)) == (t, chief, names)
+    # a copy owns its native memory: closing the source does not affect it, nor the reverse
+    run_steps!(cp, 3)
+    @test cp.n == 6 && isopen(cp)
+    branch = copy(cp)
+    close(cp)
+    run_steps!(branch, 1)
+    @test branch.n == 7
+    close(branch)
+    GC.gc(true); GC.gc(true)                 # the finalizers of closed scenes must not free again
+    @test !isopen(branch)
+    # an owner already closed through the binding does not stop close(scene) from freeing the other one
+    for owner in (:data, :model)
+        half = make_scene((SM.InverseSquaredGravityModel(),); dt=0.05)
+        close(getfield(half, owner))
+        @test !isopen(half) && isopen(half.model) + isopen(half.data) == 1
+        close(half)
+        @test !isopen(half.model) && !isopen(half.data) && isempty(half.qpos) && size(half.xipos) == (3, 0)
+    end
+end
+
+@testset "arena use: MJCF size and the peak since the last reset" begin
+    small = replace(TWO_BODIES, "<worldbody>" => "<size memory=\"64K\"/>\n  <worldbody>")
+    sc = ProximityScene(; mjcf_xml=small, dt=0.05, planet=EARTH, gravity_effectors=(SM.InverseSquaredGravityModel(),),
+        initial_states=states())
+    use = scene_arena_use(sc)
+    @test use.size == 65536
+    @test 0 < use.peak <= use.size
+    run_steps!(sc, 10)
+    # the scene itself behaves the same with the small arena
+    ref = run_steps!(make_scene((SM.InverseSquaredGravityModel(),); dt=0.05), 10)
+    @test same_state(sc, ref)
+    @test scene_arena_use(copy(sc)).size == 65536          # copies keep the arena size
+    @test scene_arena_use(ref).size > 65536                 # MuJoCo's default is larger
+    # bodies in contact need more arena than the same bodies apart
+    touching = replace(TWO_BODIES, "contype=\"0\" conaffinity=\"0\" " => "")
+    apart = [SceneBodyState("chaser", R1, V1), SceneBodyState("target", R1 + SVector(5.0, 0.0, 0.0), V1)]
+    overlap = [SceneBodyState("chaser", R1, V1), SceneBodyState("target", R1 + SVector(1.08, 0.0, 0.0), V1)]   # 2 cm deep
+    mk(st) = ProximityScene(; mjcf_xml=touching, dt=0.01, planet=EARTH, gravity_effectors=(SM.InverseSquaredGravityModel(),),
+        initial_states=st)
+    a = mk(apart); b = mk(overlap)
+    run_steps!(a, 5); run_steps!(b, 5)
+    @test scene_arena_use(b).peak > scene_arena_use(a).peak
+    scene_reset!(b, apart)                              # mj_resetData clears the peak
+    fresh = mk(apart)
+    @test scene_arena_use(b).peak == scene_arena_use(fresh).peak
+    foreach(close, (sc, ref, a, b, fresh))
 end
 
 @testset "MuJoCo instability is an error, not a silent reset" begin
