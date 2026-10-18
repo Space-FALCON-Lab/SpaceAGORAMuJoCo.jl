@@ -37,8 +37,8 @@ const TWO_BODIES = """
 const EARTH = SM.make_no_gram_planet(:earth)
 const EPH = SM.SimpleEphemeridesModel()
 const T0 = SM.InitialTime(year=2014, month=5, day=27, hour=5, minute=0, second=0.0)
-const ET0 = SM.ephemerides_time_seconds(T0, EPH)
-planet_rotation(t) = SM.planet_frame_lpi(EARTH, ET0 + t, EPH)
+const ET0 = SM.ephemerides_epoch_seconds(EPH, T0)
+planet_rotation(t) = SM.ephemerides_frame_lpi(EPH, EARTH, ET0 + t)
 
 # chaser on a 51.6 deg circular orbit at r = 7000 km; the target is ~50 m away with a small velocity offset.
 const R1 = SVector(7.0e6, 0.0, 0.0)

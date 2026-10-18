@@ -80,8 +80,8 @@ mutable struct ShadowProbe
     t::Vector{Float64}
     pos::Vector{SVector{3, Float64}}
 end
-function SM.NavigationHooks.calcNavigationEffect!(m::ShadowProbe, u, p, t::Float64, sat_idx::Int)
-    if sat_idx == 1
+function SM.NavigationHooks.update_navigation!(m::ShadowProbe, u, p, t::Float64, spacecraft_index::Int)
+    if spacecraft_index == 1
         push!(m.t, t); push!(m.pos, SVector{3, Float64}(u.sc[1].pos))
     end
     return nothing
@@ -415,7 +415,7 @@ end
     base_pose = SM.ClothArmBasePose(SVector{3, Float64}(0.0, 0.0, 0.0), SVector{4, Float64}(0.0, 0.0, 0.0, 1.0))
     target = SM.cloth_fk(arm_model, base_pose, [-0.12, -0.08, 0.06]).end_effector_position
     plan = SM.plan_robot_arm_motion(arm_model, base_pose, [0.08, 0.95, -0.85], target; config=SM.RobotArmPlannerConfig(dt_s=0.1, duration_s=2.0))
-    arm = SM.RobotArmControlEffector(plan=plan, spacecraft_idx=1, controller=SM.init_robot_arm_joint_mpc(plan; dt_s=0.1, horizon=6), control_dt_s=0.1)
+    arm = SM.RobotArmControlEffector(plan=plan, spacecraft_index=1, controller=SM.init_robot_arm_joint_mpc(plan; dt_s=0.1, horizon=6), control_dt_s=0.1)
     @test refused(cfg(extra=(; control_model=SM.ControlModel(control_effectors=(arm,), control_rates=[0.1])), orient=true), r"robot-arm")
     # a control effector that acts on a scene-owned spacecraft, or on every spacecraft
     thr = SM.BaseThrusterModel(thrust=[1.0, 0.0], direction=[1.0, 1.0], Δv=[0.0, 0.0], start_burn_time=[1.0, 1.0], stop_burn_time=[2.0, 2.0], Isp=[300.0, 300.0])

@@ -7,7 +7,7 @@ using .CompanionInstallation
     package = dirname(@__DIR__)
     project = TOML.parsefile(joinpath(package, "Project.toml"))
     @test project["uuid"] == "a46e04e1-adb7-43c3-a03b-26575bf4fb67"
-    @test project["compat"]["SpaceAGORA"] == "0.2, 0.3"  # outer families only; the exact pin and contract are required
+    @test project["compat"]["SpaceAGORA"] == "0.3, 0.4"  # outer families only; the exact pin and contract are required
     @testset "declared standard-library identities" begin
         # Read this Julia installation's identifiers, rather than maintaining a
         # second handwritten UUID table that could repeat a metadata typo.

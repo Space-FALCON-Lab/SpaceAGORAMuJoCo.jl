@@ -103,18 +103,19 @@ before combining models.
 
 ## Compatibility
 
-The `SpaceAGORA = "0.2, 0.3"` entry is a version-family constraint. SpaceAGORA
-0.3.0 is the first release planned to carry contract 2.0.0; until then the
-pinned core revision declares version 0.2.0. The supported standalone default is
-the **exact core source pin plus `ExternalPropagationServices` contract
-2.0.0**; the version families alone do not qualify another source revision.
+The `SpaceAGORA = "0.3, 0.4"` entry is a version-family constraint. SpaceAGORA
+0.3.0 is the first release with contract 2.0.0 and with the extension-hook names
+the tests use; the pinned core revision is SpaceAGORA 0.3.1. The supported
+standalone default is the **exact core source pin plus
+`ExternalPropagationServices` contract 2.0.0**; the version families alone do
+not qualify another source revision.
 Source entries do not propagate into arbitrary consumer environments, so use the
 installer or explicitly select that core revision before adding the companion.
 
 The adapter checks the contract before defining hook methods and again at
 runtime initialization, including when loading a precompiled package. The
-[adapter standard](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/13b386754daf7c95b96eb101aa8e08114aeb8839/docs/src/reference/adapter_contract.md)
-and [external propagation reference](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/13b386754daf7c95b96eb101aa8e08114aeb8839/docs/src/reference/external_propagation_services.md)
+[adapter standard](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/c7db8b6fbb2843a3828ccc3003f68da06ca47848/docs/src/reference/adapter_contract.md)
+and [external propagation reference](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/c7db8b6fbb2843a3828ccc3003f68da06ca47848/docs/src/reference/external_propagation_services.md)
 describe the core-owned interface. The [architecture note](docs/architecture.md)
 explains scene ownership and synchronization.
 
