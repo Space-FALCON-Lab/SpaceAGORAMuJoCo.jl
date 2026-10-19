@@ -10,7 +10,7 @@ The runner is the independent `SpaceAGORAMuJoCo.jl` companion repository, with i
 own `Project.toml`, lazy `Artifacts.toml`, source, tests and CI. The package UUID,
 MuJoCo binding and scientific models are preserved from the original in-tree
 package. Core remains independent of MuJoCo. Installation explicitly selects the
-tested core commit from `Project.toml`; the `0.2, 0.3` compatibility families
+tested core commit from `Project.toml`; the `0.3, 0.4` compatibility families
 alone do not assert support. See the repository README for the independent setup
 and core checkout override.
 
