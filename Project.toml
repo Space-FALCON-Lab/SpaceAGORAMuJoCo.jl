@@ -1,6 +1,6 @@
 name = "SpaceAGORAMuJoCo"
 uuid = "a46e04e1-adb7-43c3-a03b-26575bf4fb67"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["SpaceAGORA Contributors"]
 
 [deps]
@@ -12,10 +12,10 @@ SpaceAGORA = "afbfb69f-5c0b-4832-b760-43725dff8540"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [sources]
-SpaceAGORA = {url = "https://github.com/Space-FALCON-Lab/SpaceAGORA.jl.git", rev = "c7db8b6fbb2843a3828ccc3003f68da06ca47848"}
+SpaceAGORA = {url = "https://github.com/Space-FALCON-Lab/SpaceAGORA.jl.git", rev = "012f810b9c9a40c344974349f50f666847f066cc"}
 
 [compat]
-SpaceAGORA = "0.3, 0.4"
+SpaceAGORA = "0.4, 0.5"
 StaticArrays = "1"
 julia = "1.12"
 
