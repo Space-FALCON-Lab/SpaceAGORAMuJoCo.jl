@@ -10,7 +10,7 @@ default_tol() = SM.IntegrationTolerances(reltol_orbit=1e-12, abstol_orbit=1e-9, 
 # A configuration over `scs` (two spacecraft by default) with the scene owning `owned` (pairs index => body).
 function engine_config(effectors, tend, data_rate; scs=nothing, scene=nothing, owned=(1 => "chaser", 2 => "target"),
         solver=:dp8, orient=false, tol=default_tol(), extra=(;))
-    scs === nothing && (scs = SM.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2)])
+    scs === nothing && (scs = SM.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)])
     base = make_example_config(planet=EARTH, spacecraft=scs[1], mission_time=tend, initial_time=T0,
         dynamic_effectors=effectors, density_model=SM.NoAtmosphereModel(), ephemerides_model=EPH,
         orientation_sim=orient, keplerian=true, verbose=false, results=false, results_directory=mktempdir(),
@@ -178,15 +178,15 @@ quat_angle(a, b) = (c = abs(dot(a, b)); 2 * acos(min(1.0, c)))     # angle betwe
     @test worst < 4eps()
 end
 
-function spin_sc(m, I, r, v, q, ω)
+function spin_sc(m, I, r, v, q, ω; id=1)
     bus = mklink(root=true, m=m, dims=(1.0, 1.0, 1.0))
     ic = SM.CartesianInitialCondition(r, v; q=q, ang_vel=ω)
-    return SM.SpacecraftModel(; joints=SM.Joint[], links=[bus], root=bus, initial_condition=ic, inertia_tensor=SMatrix{3, 3, Float64}(diagm(collect(I))))
+    return SM.SpacecraftModel(; joints=SM.Joint[], links=[bus], root=bus, initial_condition=ic, inertia_tensor=SMatrix{3, 3, Float64}(diagm(collect(I))), id)
 end
 const QA = normalize(SVector(0.3, -0.5, 0.2, 0.8)); const QB = normalize(SVector(-0.1, 0.4, 0.7, 0.2))
 # Spin close to the axis of largest inertia (stable, so discretization errors do not grow exponentially).
 const WA = SVector(0.03, 0.02, 0.3); const WB = SVector(0.02, -0.03, 0.25)
-spin_scs() = SM.SpacecraftModel[spin_sc(20.0, (2.0, 3.0, 4.0), R1, V1, QA, WA), spin_sc(35.0, (5.0, 6.0, 7.0), R2, V2, QB, WB)]
+spin_scs() = SM.SpacecraftModel[spin_sc(20.0, (2.0, 3.0, 4.0), R1, V1, QA, WA; id=1), spin_sc(35.0, (5.0, 6.0, 7.0), R2, V2, QB, WB; id=2)]
 tcol(df, r, i, name, n) = SVector{n, Float64}(df[r, "sc$(i)_$(name)_$k"] for k in 1:n)
 
 function spin_errors(table, ref, rows)
@@ -276,10 +276,10 @@ loose_tol() = SM.IntegrationTolerances(reltol_orbit=1e-6, abstol_orbit=1e-3, rel
     # the same effect with a second ORDINARY spacecraft; the scene must add nothing beyond it.
     effectors = (SM.InverseSquaredJ2GravityModel(),)
     tend = 600.0; every = 10.0
-    sc2() = rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1)
+    sc2() = rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1; id=2)
     alone = run_table(engine_config(effectors, tend, every; scs=SM.SpacecraftModel[ordinary_sc()], tol=loose_tol()))
     two = run_table(engine_config(effectors, tend, every; scs=SM.SpacecraftModel[ordinary_sc(), sc2()], tol=loose_tol()))
-    scs3 = SM.SpacecraftModel[ordinary_sc(), sc2(), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2)]
+    scs3 = SM.SpacecraftModel[ordinary_sc(), sc2(), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=3)]
     scene = make_scene(effectors; dt=0.05)
     mixed = run_table(engine_config(effectors, tend, every; scs=scs3, scene, owned=(2 => "chaser", 3 => "target"), tol=loose_tol()))
     maxdiff(a, b, f) = maximum(maximum(abs.(a[!, "sc1_$(f)_$k"] .- b[!, "sc1_$(f)_$k"])) for k in 1:3)
@@ -305,7 +305,7 @@ end
     template = make_scene(effectors; dt)             # one template shared by every sample and thread
     function sample(seed)
         v1 = V1 + SVector(0.0, 0.0, 1e-3 * seed)
-        scs = SM.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, v1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2)]
+        scs = SM.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, v1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)]
         t = run_table(engine_config(effectors, tend, 10.0; scs, scene=template))
         return [t[!, c] for c in names(t) if c != "time"]
     end
@@ -407,7 +407,7 @@ end
         @test refuses(() -> SpaceAGORA.run_simulation(cfg()), r"flat")
     end
     # articulated joints, compliant attachments and the cloth robot arm on a scene-owned spacecraft
-    plain = rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2)
+    plain = rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)
     @test refuses(() -> SpaceAGORA.run_simulation(cfg(scs=SM.SpacecraftModel[hinge_sc(), plain], orient=true)), r"articulated")
     @test refused(cfg(scs=SM.SpacecraftModel[hinge_sc(), plain], orient=true), r"articulated joints")
     @test refused(cfg(scs=SM.SpacecraftModel[attached_sc(), plain], orient=true), r"compliant attachments")
@@ -443,11 +443,11 @@ end
     @test_throws ArgumentError ProximitySceneDynamics(scene, 1 => "chaser", 2 => "chaser")
     @test_throws ArgumentError ProximitySceneDynamics(scene)
     # mass consistency, when requested
-    heavy = SM.SpacecraftModel[rigid_sc(21.0, (1.0, 0.8, 0.6), R1, V1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2)]
+    heavy = SM.SpacecraftModel[rigid_sc(21.0, (1.0, 0.8, 0.6), R1, V1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)]
     with_mass(rtol, scs) = fixture_configuration(cfg(; scs); external_propagators=(ProximitySceneDynamics(scene, 1 => "chaser", 2 => "target"; mass_rtol=rtol),))
     @test refused(with_mass(1e-3, heavy), r"mass")
     @test passes(with_mass(0.1, heavy))
-    @test passes(with_mass(1e-9, SM.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2)]))
+    @test passes(with_mass(1e-9, SM.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)]))
     # a scene with an articulated link: only free-root bodies can carry a spacecraft
     arm_scene = ProximityScene(; mjcf_xml=ARM_XML, dt=0.05, planet=EARTH, gravity_effectors=effectors, initial_states=states(), planet_rotation=planet_rotation)
     @test "link" in scene_body_names(arm_scene)

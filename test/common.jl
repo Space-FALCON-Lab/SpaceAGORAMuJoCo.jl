@@ -59,16 +59,17 @@ make_scene(effectors; dt, kwargs...) = ProximityScene(; mjcf_xml=TWO_BODIES, dt,
 # --- the same two bodies as ordinary SpaceAGORA spacecraft ---------------------------------------------
 
 mklink(; root=false, m, dims, r=(0.0, 0.0, 0.0)) = SM.Link(root=root, m=m, dims=MVector{3, Float64}(dims...), r=MVector{3, Float64}(r...), q=MVector{4, Float64}(0, 0, 0, 1))
-function rigid_sc(m, dims, r, v)
+# Spacecraft that run together need distinct ids; the tests number them by position.
+function rigid_sc(m, dims, r, v; id=1)
     bus = mklink(root=true, m=m, dims=dims)
     ic = SM.CartesianInitialCondition(r, v)
-    return SM.SpacecraftModel(; joints=SM.Joint[], links=[bus], root=bus, initial_condition=ic, inertia_tensor=bus.inertia)
+    return SM.SpacecraftModel(; joints=SM.Joint[], links=[bus], root=bus, initial_condition=ic, inertia_tensor=bus.inertia, id)
 end
 function engine_reference(effectors, tend, data_rate)
     tol = SM.IntegrationTolerances(reltol_orbit=1e-12, abstol_orbit=1e-9, reltol_atmosphere=1e-12, abstol_atmosphere=1e-9,
         reltol_quaternion=1e-12, abstol_quaternion=1e-9, reltol_mass=1e-12, abstol_mass=1e-9,
         reltol_angular_rate=1e-12, abstol_angular_rate=1e-9, dt_max_orbit=0.5, dt_max_atmosphere=0.5)
-    scs = SM.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2)]
+    scs = SM.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)]
     base = make_example_config(planet=EARTH, spacecraft=scs[1], mission_time=tend, initial_time=T0,
         dynamic_effectors=effectors, density_model=SM.NoAtmosphereModel(), ephemerides_model=EPH,
         orientation_sim=false, keplerian=true, verbose=false, results=false, results_directory=mktempdir(),
