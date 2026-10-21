@@ -12,7 +12,7 @@ SpaceAGORA = "afbfb69f-5c0b-4832-b760-43725dff8540"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [sources]
-SpaceAGORA = {url = "https://github.com/Space-FALCON-Lab/SpaceAGORA.jl.git", rev = "5c0d566f1042c446c610ffed3d8c92b64670a7f7"}
+SpaceAGORA = {url = "https://github.com/Space-FALCON-Lab/SpaceAGORA.jl.git", rev = "519d7a40a6d30d01e5daa8025e88f42c6d93b78c"}
 
 [compat]
 SpaceAGORA = "0.5, 0.6"
