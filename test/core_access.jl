@@ -9,26 +9,41 @@
 # - `runtime_violations`: bindings of the companion's modules whose value comes
 #   from SpaceAGORA and is not permitted, whether imported or defined there (a
 #   local alias such as `const T = SomeAlias.SimulationModel.ODEParams` too).
-# - `source_violations`: in module code and function bodies, every access that
-#   starts at SpaceAGORA or at a name the source binds to a SpaceAGORA module and
-#   steps through a name that is not permitted; `getfield`/`getproperty`/`getglobal`
-#   on such a module with a computed name; and the SpaceAGORA module passed on as a
-#   value. Strings and comments are not code, so documentation is not checked.
+# - `source_violations`: in module code and function bodies, every access chain
+#   that starts at SpaceAGORA, at a name the source binds to a SpaceAGORA module, or
+#   at a `getfield`/`getproperty`/`getglobal` lookup on one (also `Base.`- or
+#   `Core.`-qualified), and steps through a name that is not permitted; such a
+#   lookup with a computed name; and the SpaceAGORA module passed on as a value.
+#   Strings and comments are not code, so documentation is not checked.
 #   It follows these bindings of SpaceAGORA modules, at module level and in
 #   function bodies: `X = <path>` and `X::T = <path>` (with `const`, `global` or
-#   `local`), `import A.B` and `using A.B` (which bind `B`), `import ... as X`,
-#   each item of `import A: x, y as z` and `using A: x, y as z`, the exported
-#   modules of a plain `using A`, and relative paths such as `..SpaceAGORA`. It
-#   keeps one table of names for all the files, not one per scope. It also returns
-#   that table.
-# - `unknown_module_bindings`: bindings of the companion's modules whose value is a
-#   SpaceAGORA module under a name the source table does not have: a backstop for a
-#   binding form the source scan does not follow.
+#   `local`), chained assignments (`a = b = <path>`), type-asserted right-hand
+#   sides (`X = <path>::Module`), positional and keyword argument defaults
+#   (`f(m = <path>)`, `f(; m = <path>)`), `import A.B` and `using A.B` (which bind
+#   `B`), `import ... as X`, each item of `import A: x, y as z` and
+#   `using A: x, y as z`, the exported modules of a plain `using A`, and relative
+#   paths such as `..SpaceAGORA`. It keeps one table of names for all the files,
+#   not one per scope, and reports a name bound to two different SpaceAGORA
+#   modules. It also returns that table.
+# - `unknown_module_bindings`: module-level bindings of the companion's modules
+#   whose value is a SpaceAGORA module under a name the source table does not have:
+#   a backstop for a binding form the source scan does not follow.
 #
-# Limits: a module value made at run time and never bound at module level under a
-# name the source binds, such as `identity(Facade)`, tuple destructuring or
-# `Core.eval` of a string, is not seen by the source check, and the runtime check
-# sees module-level bindings only.
+# Limits. The source check reads syntax only, so it does not see:
+# - a module value passed through a call or a data structure and used there:
+#   `identity(Facade)`, tuple destructuring or indexing, lambda and comprehension
+#   variables, `parentmodule(Facade.f)`, or a permitted module handed to a
+#   reflective or higher-order call (`Core.eval(Facade, :x)`,
+#   `Base.invokelatest(getproperty, Facade, :x)`, `getfield.(Ref(Facade), names)`);
+# - code made at run time: `Core.eval` or `include_string` of a string, `eval` of a
+#   constructed expression, string macros, `Base.require` or `Base.root_module` of
+#   a package id;
+# - files it is not given: a file included from outside the scanned directories,
+#   or one without the `.jl` suffix.
+# Because the table is not per scope, a local that is not a module but has the name
+# of a bound one is checked as that module, which reports rather than hides. The
+# runtime check and the backstop see the module-level bindings of the package's
+# modules only; at that level they catch the forms above that leave a binding.
 module CoreAccess
 export CorePolicy, runtime_violations, source_violations, unknown_module_bindings
 
@@ -122,15 +137,20 @@ function source_violations(policy::CorePolicy, files)
     lookup(value, name) = value isa Module && Base.moduleroot(value) === core && isdefined(value, name) ?
         Some(getglobal(value, name)) : nothing
     is_access(ex) = Meta.isexpr(ex, :.) && length(ex.args) == 2 && ex.args[2] isa QuoteNode
+    # A lookup's function: `getfield`, or a `Base.`/`Core.`-qualified one.
+    lookup_name(f) = f isa Symbol ? f :
+        Meta.isexpr(f, :.) && length(f.args) == 2 && f.args[1] in (:Base, :Core) && f.args[2] isa QuoteNode ?
+        f.args[2].value : nothing
     is_lookup(ex) = Meta.isexpr(ex, :call) && length(ex.args) >= 3 &&
-        ex.args[1] in (:getfield, :getproperty, :getglobal, :isdefined)
+        lookup_name(ex.args[1]) in (:getfield, :getproperty, :getglobal, :isdefined)
+    is_reader(ex) = is_lookup(ex) && lookup_name(ex.args[1]) !== :isdefined
     function resolve(ex, record)
         if ex isa Symbol
             return haskey(aliases, ex) ? Some(aliases[ex]) : nothing
         elseif is_access(ex)
             base = resolve(ex.args[1], record)
             return base === nothing ? nothing : step(something(base), ex.args[2].value, record)
-        elseif is_lookup(ex) && ex.args[1] !== :isdefined
+        elseif is_reader(ex)
             base = resolve(ex.args[2], record)
             base === nothing && return nothing
             key = ex.args[3]
@@ -145,7 +165,10 @@ function source_violations(policy::CorePolicy, files)
     function value_of(ex)
         if ex isa Symbol
             return haskey(aliases, ex) ? Some(aliases[ex]) : nothing
-        elseif is_access(ex) || (is_lookup(ex) && ex.args[1] !== :isdefined && ex.args[3] isa QuoteNode)
+        elseif (Meta.isexpr(ex, :(::)) && length(ex.args) == 2) || Meta.isexpr(ex, :(=))
+            # `x::T` and the value of a chained `a = b = x`.
+            return value_of(ex.args[Meta.isexpr(ex, :(=)) ? 2 : 1])
+        elseif is_access(ex) || (is_reader(ex) && ex.args[3] isa QuoteNode)
             base = value_of(ex.args[is_access(ex) ? 1 : 2])
             name = is_access(ex) ? ex.args[2].value : ex.args[3].value
             return base === nothing || !(name isa Symbol) ? nothing : lookup(something(base), name)
@@ -179,8 +202,15 @@ function source_violations(policy::CorePolicy, files)
     end
     binding_name(lhs) = lhs isa Symbol ? lhs :
         Meta.isexpr(lhs, :(::)) && length(lhs.args) == 2 && lhs.args[1] isa Symbol ? lhs.args[1] : nothing
+    # One table for all scopes: a name bound to two different SpaceAGORA modules is
+    # reported instead of being read as the first.
+    ambiguous = Set{Symbol}()
     function bind!(name, value)
-        name isa Symbol && value !== nothing && something(value) isa Module && !haskey(aliases, name) || return false
+        name isa Symbol && value !== nothing && something(value) isa Module || return false
+        if haskey(aliases, name)
+            aliases[name] === something(value) || push!(ambiguous, name)
+            return false
+        end
         aliases[name] = something(value)
         return true
     end
@@ -188,7 +218,8 @@ function source_violations(policy::CorePolicy, files)
     function collect!(ex)
         ex isa Expr || return false
         changed = false
-        if Meta.isexpr(ex, :(=))
+        if Meta.isexpr(ex, :(=)) || Meta.isexpr(ex, :kw)
+            # Assignments and argument defaults.
             changed |= bind!(binding_name(ex.args[1]), value_of(ex.args[2]))
         elseif ex.head in (:import, :using)
             for arg in ex.args
@@ -234,12 +265,23 @@ function source_violations(policy::CorePolicy, files)
         elseif !(ex isa Expr)
             return
         elseif is_access(ex)
+            # The whole chain, when it starts at a known module or at a lookup on one.
             base = base_of(ex)
-            base isa Symbol && haskey(aliases, base) ? resolve(ex, true) : check!(base)
+            if base isa Symbol && haskey(aliases, base)
+                resolve(ex, true)
+            elseif is_reader(base) && resolve(base.args[2], false) !== nothing
+                resolve(ex, true)
+                foreach(check!, base.args[4:end])
+            else
+                check!(base)
+            end
         elseif is_lookup(ex) && resolve(ex.args[2], false) !== nothing
-            ex.args[1] === :isdefined || resolve(ex, true)
+            is_reader(ex) && resolve(ex, true)
             foreach(check!, ex.args[4:end])
-        elseif Meta.isexpr(ex, :(=)) && binding_name(ex.args[1]) !== nothing && value_of(ex.args[2]) !== nothing
+        # A binding's right-hand side as one chain; a chained or type-asserted one goes
+        # to the general case below, part by part.
+        elseif Meta.isexpr(ex, :(=)) && binding_name(ex.args[1]) !== nothing && value_of(ex.args[2]) !== nothing &&
+                !(Meta.isexpr(ex.args[2], :(=)) || Meta.isexpr(ex.args[2], :(::)))
             resolve(ex.args[2], true)
         elseif ex.head in (:import, :using)
             for arg in ex.args
@@ -263,6 +305,7 @@ function source_violations(policy::CorePolicy, files)
         return nothing
     end
     foreach(check!, exprs)
+    foreach(name -> push!(found, "name bound to two SpaceAGORA modules: $name"), sort!(collect(ambiguous)))
     return found, used, aliases
 end
 end # module CoreAccess
