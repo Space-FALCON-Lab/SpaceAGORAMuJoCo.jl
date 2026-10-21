@@ -103,9 +103,12 @@ before combining models.
 
 ## Compatibility
 
-The `SpaceAGORA = "0.4, 0.5"` entry is a version-family constraint. SpaceAGORA
+The `SpaceAGORA = "0.5, 0.6"` entry is a version-family constraint. SpaceAGORA
 0.5.0 removes the extension-hook names deprecated in 0.3.0, which this package no
-longer uses; the pinned core revision is SpaceAGORA 0.5.1. The supported
+longer uses. SpaceAGORA 0.6.0 changes the HYPR and EDG service contracts and
+keeps `ExternalPropagationServices` contract 2.0.0, so both families provide the
+contract this package implements. The pinned core revision is the `[sources]`
+entry in `Project.toml`. The supported
 standalone default is the **exact core source pin plus
 `ExternalPropagationServices` contract 2.0.0**; the version families alone do
 not qualify another source revision.
