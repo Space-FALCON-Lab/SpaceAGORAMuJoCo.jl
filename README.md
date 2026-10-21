@@ -145,11 +145,15 @@ julia --startup-file=no --project=/path/to/mujoco-env test/load_order.jl core-fi
 julia --startup-file=no --project=/path/to/mujoco-env test/load_order.jl companion-first
 julia --startup-file=no --project=/path/to/mujoco-env test/core_only.jl
 julia --startup-file=no --project=/path/to/mujoco-env test/incompatible_core.jl
+julia --startup-file=no --project=/path/to/mujoco-env test/missing_native.jl
 ```
 
 The standalone CI installs from scratch and runs both import orders, core-only
-isolation, early contract-mismatch refusal, contract conformance, and mandatory
-native tests on Linux x86_64. The numerical tests,
+isolation, early contract-mismatch refusal, contract conformance, the refusal of a
+scene without the MuJoCo library, and mandatory native tests on Linux x86_64. Both
+import orders also check that the package uses only names the contract lists and
+SpaceAGORA's public root names. A separate job checks that the pinned core commit is
+a SpaceAGORA release. The numerical tests,
 model files, tolerances and pinned MuJoCo binding come from the original Stage 1/2
 implementation. Extraction does not constitute a new scientific validation run.
 Without `SPACEAGORA_MUJOCO_REQUIRED=1`, the native suite may skip on an unsupported

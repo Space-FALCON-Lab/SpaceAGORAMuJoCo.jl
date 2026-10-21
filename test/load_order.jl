@@ -18,6 +18,8 @@ end
     @test SpaceAGORAMuJoCo.EP === services
     @test services.CONTRACT_VERSION == SpaceAGORAMuJoCo.CORE_CONTRACT_VERSION == v"2.0.0"
     @test services.require_version(v"2.0.0") === nothing
+    # The facade's shape and its exact version refusal, as SpaceAGORA's conformance check defines them.
+    SpaceAGORA.Conformance.test_service_facade(services; version=SpaceAGORAMuJoCo.CORE_CONTRACT_VERSION)
     for incompatible in (v"0.0.0", v"1.0.0")
         @test_throws services.CompatibilityError services.require_version(incompatible)
     end
@@ -44,3 +46,5 @@ end
         @test !hasmethod(hook, Tuple{runtime, Int, Float64})
     end
 end
+
+include("service_boundary.jl")
