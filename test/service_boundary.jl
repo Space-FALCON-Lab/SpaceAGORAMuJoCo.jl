@@ -3,8 +3,9 @@
 # changes. The package reaches SpaceAGORA only through names the
 # ExternalPropagationServices contract lists and through SpaceAGORA's public root
 # names: a contract change that drops a name the package uses, or a new use of an
-# unlisted or private name, fails here. The check covers the runtime source in
-# src/, including local aliases and function bodies (test/core_access.jl); the
+# unlisted or private name, fails here. The check covers the runtime source under
+# src/, in module code and function bodies, through the bindings of SpaceAGORA
+# modules that test/core_access.jl follows and within the limits it states; the
 # tests' private fixtures are outside it.
 include("core_access.jl")
 using .CoreAccess
@@ -23,9 +24,12 @@ using .CoreAccess
     policy = CorePolicy(SpaceAGORA, allowed, (SpaceAGORA, services))
 
     @test isempty(runtime_violations(policy, SpaceAGORAMuJoCo))
-    sources = [file for file in readdir(joinpath(@__DIR__, "..", "src"); join=true) if endswith(file, ".jl")]
-    found, used = source_violations(policy, sources)
+    sources = [joinpath(directory, file) for (directory, _, files) in walkdir(joinpath(@__DIR__, "..", "src"))
+               for file in files if endswith(file, ".jl")]
+    found, used, known = source_violations(policy, sources)
     @test isempty(found)
+    # Every binding of a SpaceAGORA module is one the source check follows.
+    @test isempty(unknown_module_bindings(policy, SpaceAGORAMuJoCo, known))
     # A check that saw nothing would pass too: the source does name the contract's
     # services and public root names.
     @test length(sources) >= 4
