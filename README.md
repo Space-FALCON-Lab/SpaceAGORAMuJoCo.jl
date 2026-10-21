@@ -152,7 +152,7 @@ The standalone CI installs from scratch and runs both import orders, core-only
 isolation, early contract-mismatch refusal, contract conformance, the refusal of a
 scene without the MuJoCo library, and mandatory native tests on Linux x86_64. Both
 import orders also check that the package uses only names the contract lists and
-SpaceAGORA's public root names. A separate job checks that the pinned core commit is
+SpaceAGORA's public root names, also through local aliases and in function bodies. A separate job checks that the pinned core commit is
 a SpaceAGORA release. The numerical tests,
 model files, tolerances and pinned MuJoCo binding come from the original Stage 1/2
 implementation. Extraction does not constitute a new scientific validation run.
