@@ -13,14 +13,16 @@ uses the pinned MuJoCo 3.11.0 artifact.
 
 ## Choose the guide and source pair together
 
-This version of the guide uses `ExternalPropagationServices` contract 2.0.0.
-The published v0.1.0 companion uses contract 1.0.0; if you install that release,
-use its [tagged user guide](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/blob/v0.1.0/docs/user_guide.md)
+This version of the guide uses `ExternalPropagationServices` contract 2.0.0,
+as the releases from v0.2.0 on do; v0.5.0 pins SpaceAGORA 0.6.0. The v0.1.0
+release uses contract 1.0.0; if you install that release, use its
+[tagged user guide](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/blob/v0.1.0/docs/user_guide.md)
 and [release record](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/releases/tag/v0.1.0).
 Do not combine its environment with the current coupled example below.
 
 To follow the current guide, prepare an environment from the companion checkout
-that contains it. For a new checkout of the default branch:
+that contains it. For a new checkout of the default branch (add
+`git checkout --detach v0.5.0` after `cd` to use the v0.5.0 release instead):
 
 ```sh
 git clone https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl.git
@@ -320,7 +322,7 @@ of ownership, the stated solver mode and configuration restrictions. Run setup
 still performs routing and native preparation checks. Users of this adapter do
 not need to implement the service hooks or access engine storage. Authors of
 other adapters should use the
-[versioned service contract](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/41cd1f2ef7bcd4ef51f556487911e797ca411867/docs/src/reference/external_propagation_services.md).
+[versioned service contract](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/0487e8226107592b19221618f0f21f500cf2aacf/docs/src/reference/external_propagation_services.md).
 
 ## Reading coupled output
 
