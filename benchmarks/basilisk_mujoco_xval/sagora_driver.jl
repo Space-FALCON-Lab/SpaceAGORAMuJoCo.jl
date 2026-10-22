@@ -6,7 +6,6 @@ import SpaceAGORA
 using SpaceAGORAMuJoCo
 using SpaceAGORAMuJoCo: Binding
 const B = Binding
-const SM = SpaceAGORA.SimulationModel
 
 const OBJ_JOINT = 3
 const OBJ_ACTUATOR = 19
@@ -22,14 +21,14 @@ logsize() = isfile(MJLOG) ? filesize(MJLOG) : 0
 
 function run_one(cfg, dt, duration, casedir)
     mu = cfg["mu"]; a = cfg["orbit_radius_m"]; inc = deg2rad(cfg["inclination_deg"])
-    planet = SM.make_no_gram_planet(:earth)
+    planet = SpaceAGORA.make_no_gram_planet(:earth)
     isapprox(planet.μ, mu; rtol = 1e-14) || error("case mu $mu differs from SpaceAGORA Earth mu $(planet.μ)")
     r0 = SVector(a, 0.0, 0.0)
     v0 = sqrt(mu / a) * SVector(0.0, cos(inc), sin(inc))
     states = [SceneBodyState(b["name"], r0 + SVector{3}(b["dr"]...), v0 + SVector{3}(b["dv"]...); ω = Tuple(b["omega"]))
               for b in cfg["body"]]
     scene = ProximityScene(; mjcf_path = joinpath(casedir, cfg["mjcf"]), dt, planet,
-        gravity_effectors = (SM.InverseSquaredGravityModel(),), initial_states = states,
+        gravity_effectors = (SpaceAGORA.InverseSquaredGravityModel(),), initial_states = states,
         integrator = Symbol(get(cfg, "sagora_integrator", "implicitfast")))
     m = scene.model
     qadr = B.jnt_qposadr(m); dadr = B.jnt_dofadr(m); jtype = B.jnt_type(m)

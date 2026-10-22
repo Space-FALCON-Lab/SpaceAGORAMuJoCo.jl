@@ -105,7 +105,7 @@ before combining models.
 
 The `SpaceAGORA = "0.4, 0.5"` entry is a version-family constraint. SpaceAGORA
 0.5.0 removes the extension-hook names deprecated in 0.3.0, which this package no
-longer uses; the pinned core revision is SpaceAGORA 0.5.0. The supported
+longer uses; the pinned core revision is SpaceAGORA 0.5.1. The supported
 standalone default is the **exact core source pin plus
 `ExternalPropagationServices` contract 2.0.0**; the version families alone do
 not qualify another source revision.
@@ -114,8 +114,8 @@ installer or explicitly select that core revision before adding the companion.
 
 The adapter checks the contract before defining hook methods and again at
 runtime initialization, including when loading a precompiled package. The
-[adapter standard](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/41cd1f2ef7bcd4ef51f556487911e797ca411867/docs/src/reference/adapter_contract.md)
-and [external propagation reference](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/41cd1f2ef7bcd4ef51f556487911e797ca411867/docs/src/reference/external_propagation_services.md)
+[adapter standard](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/5c0d566f1042c446c610ffed3d8c92b64670a7f7/docs/src/reference/adapter_contract.md)
+and [external propagation reference](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/5c0d566f1042c446c610ffed3d8c92b64670a7f7/docs/src/reference/external_propagation_services.md)
 describe the core-owned interface. The [architecture note](docs/architecture.md)
 explains scene ownership and synchronization.
 
@@ -145,11 +145,15 @@ julia --startup-file=no --project=/path/to/mujoco-env test/load_order.jl core-fi
 julia --startup-file=no --project=/path/to/mujoco-env test/load_order.jl companion-first
 julia --startup-file=no --project=/path/to/mujoco-env test/core_only.jl
 julia --startup-file=no --project=/path/to/mujoco-env test/incompatible_core.jl
+julia --startup-file=no --project=/path/to/mujoco-env test/missing_native.jl
 ```
 
 The standalone CI installs from scratch and runs both import orders, core-only
-isolation, early contract-mismatch refusal, contract conformance, and mandatory
-native tests on Linux x86_64. The numerical tests,
+isolation, early contract-mismatch refusal, contract conformance, the refusal of a
+scene without the MuJoCo library, and mandatory native tests on Linux x86_64. Both
+import orders also check that the package uses only names the contract lists and
+SpaceAGORA's public root names, also through local aliases and in function bodies. A separate job checks that the pinned core commit is
+a SpaceAGORA release. The numerical tests,
 model files, tolerances and pinned MuJoCo binding come from the original Stage 1/2
 implementation. Extraction does not constitute a new scientific validation run.
 Without `SPACEAGORA_MUJOCO_REQUIRED=1`, the native suite may skip on an unsupported
