@@ -12,8 +12,9 @@
 # - `source_violations`: in module code and function bodies, every access chain
 #   that starts at SpaceAGORA, at a name the source binds to a SpaceAGORA module, or
 #   at a `getfield`/`getproperty`/`getglobal` lookup on one (also `Base.`- or
-#   `Core.`-qualified), and steps through a name that is not permitted; such a
-#   lookup with a computed name; and the SpaceAGORA module passed on as a value.
+#   `Core.`-qualified), and steps through a name that is not permitted, also past a
+#   type assertion inside the chain (`(Facade::Module).x`); such a lookup with a
+#   computed name; and the SpaceAGORA module passed on as a value.
 #   Strings and comments are not code, so documentation is not checked.
 #   It follows these bindings of SpaceAGORA modules, at module level and in
 #   function bodies: `X = <path>` and `X::T = <path>` (with `const`, `global` or
@@ -29,12 +30,16 @@
 #   whose value is a SpaceAGORA module under a name the source table does not have:
 #   a backstop for a binding form the source scan does not follow.
 #
-# Limits. The source check reads syntax only, so it does not see:
+# Limits. The source check reads syntax only and follows the forms above, so it
+# does not see:
 # - a module value passed through a call or a data structure and used there:
 #   `identity(Facade)`, tuple destructuring or indexing, lambda and comprehension
 #   variables, `parentmodule(Facade.f)`, or a permitted module handed to a
 #   reflective or higher-order call (`Core.eval(Facade, :x)`,
 #   `Base.invokelatest(getproperty, Facade, :x)`, `getfield.(Ref(Facade), names)`);
+# - a chain whose base is a block, a conditional or another compound expression
+#   rather than a name, an access, a lookup or a type assertion:
+#   `(begin Facade end).x`, `(c ? Facade : Other).x`, `(let m = Facade; m end).x`;
 # - code made at run time: `Core.eval` or `include_string` of a string, `eval` of a
 #   constructed expression, string macros, `Base.require` or `Base.root_module` of
 #   a package id;
@@ -144,12 +149,16 @@ function source_violations(policy::CorePolicy, files)
     is_lookup(ex) = Meta.isexpr(ex, :call) && length(ex.args) >= 3 &&
         lookup_name(ex.args[1]) in (:getfield, :getproperty, :getglobal, :isdefined)
     is_reader(ex) = is_lookup(ex) && lookup_name(ex.args[1]) !== :isdefined
+    # A type assertion `x::T` inside a chain stands for `x`.
+    is_assert(ex) = Meta.isexpr(ex, :(::)) && length(ex.args) == 2
     function resolve(ex, record)
         if ex isa Symbol
             return haskey(aliases, ex) ? Some(aliases[ex]) : nothing
         elseif is_access(ex)
             base = resolve(ex.args[1], record)
             return base === nothing ? nothing : step(something(base), ex.args[2].value, record)
+        elseif is_assert(ex)
+            return resolve(ex.args[1], record)
         elseif is_reader(ex)
             base = resolve(ex.args[2], record)
             base === nothing && return nothing
@@ -165,7 +174,7 @@ function source_violations(policy::CorePolicy, files)
     function value_of(ex)
         if ex isa Symbol
             return haskey(aliases, ex) ? Some(aliases[ex]) : nothing
-        elseif (Meta.isexpr(ex, :(::)) && length(ex.args) == 2) || Meta.isexpr(ex, :(=))
+        elseif is_assert(ex) || Meta.isexpr(ex, :(=))
             # `x::T` and the value of a chained `a = b = x`.
             return value_of(ex.args[Meta.isexpr(ex, :(=)) ? 2 : 1])
         elseif is_access(ex) || (is_reader(ex) && ex.args[3] isa QuoteNode)
@@ -258,7 +267,12 @@ function source_violations(policy::CorePolicy, files)
     end
     while any(collect!, exprs)
     end
-    base_of(ex) = is_access(ex) ? base_of(ex.args[1]) : ex
+    base_of(ex) = is_access(ex) || is_assert(ex) ? base_of(ex.args[1]) : ex
+    # The types asserted along a chain, down to a lookup's module argument: resolving
+    # the chain skips them, so they are checked on their own.
+    asserted_types(ex) = is_access(ex) ? asserted_types(ex.args[1]) :
+        is_assert(ex) ? Any[ex.args[2]; asserted_types(ex.args[1])] :
+        is_lookup(ex) ? asserted_types(ex.args[2]) : Any[]
     function check!(ex)
         if ex isa Symbol
             get(aliases, ex, nothing) === core && push!(found, "the $(nameof(core)) module used as a value ($ex)")
@@ -267,6 +281,7 @@ function source_violations(policy::CorePolicy, files)
         elseif is_access(ex)
             # The whole chain, when it starts at a known module or at a lookup on one.
             base = base_of(ex)
+            foreach(check!, asserted_types(ex))
             if base isa Symbol && haskey(aliases, base)
                 resolve(ex, true)
             elseif is_reader(base) && resolve(base.args[2], false) !== nothing
@@ -277,6 +292,7 @@ function source_violations(policy::CorePolicy, files)
             end
         elseif is_lookup(ex) && resolve(ex.args[2], false) !== nothing
             is_reader(ex) && resolve(ex, true)
+            foreach(check!, asserted_types(ex))
             foreach(check!, ex.args[4:end])
         # A binding's right-hand side as one chain; a chained or type-asserted one goes
         # to the general case below, part by part.
