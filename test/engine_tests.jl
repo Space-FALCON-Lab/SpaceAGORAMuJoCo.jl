@@ -3,25 +3,25 @@ using Test
 
 # --- configuration helpers ----------------------------------------------------------------------------
 
-default_tol() = SM.IntegrationTolerances(reltol_orbit=1e-12, abstol_orbit=1e-9, reltol_atmosphere=1e-12, abstol_atmosphere=1e-9,
+default_tol() = SpaceAGORA.IntegrationTolerances(reltol_orbit=1e-12, abstol_orbit=1e-9, reltol_atmosphere=1e-12, abstol_atmosphere=1e-9,
     reltol_quaternion=1e-12, abstol_quaternion=1e-9, reltol_mass=1e-12, abstol_mass=1e-9,
     reltol_angular_rate=1e-12, abstol_angular_rate=1e-9, dt_max_orbit=0.5, dt_max_atmosphere=0.5)
 
 # A configuration over `scs` (two spacecraft by default) with the scene owning `owned` (pairs index => body).
 function engine_config(effectors, tend, data_rate; scs=nothing, scene=nothing, owned=(1 => "chaser", 2 => "target"),
         solver=:dp8, orient=false, tol=default_tol(), extra=(;))
-    scs === nothing && (scs = SM.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)])
+    scs === nothing && (scs = SpaceAGORA.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)])
     base = make_example_config(planet=EARTH, spacecraft=scs[1], mission_time=tend, initial_time=T0,
-        dynamic_effectors=effectors, density_model=SM.NoAtmosphereModel(), ephemerides_model=EPH,
+        dynamic_effectors=effectors, density_model=SpaceAGORA.NoAtmosphereModel(), ephemerides_model=EPH,
         orientation_sim=orient, keplerian=true, verbose=false, results=false, results_directory=mktempdir(),
-        solver_config=SM.SolverConfig(solver_mode=solver))
+        solver_config=SpaceAGORA.SolverConfig(solver_mode=solver))
     props = scene === nothing ? () : (ProximitySceneDynamics(scene, owned...),)
     configured = fixture_configuration(base;
         integration_tolerances=tol,
-        mission_configuration=SM.MissionConfiguration(
+        mission_configuration=SpaceAGORA.MissionConfiguration(
             mission_type=base.mission_configuration.mission_type, keplerian=true, number_of_orbits=1,
             mission_time=tend, orientation_sim=orient, num_steps_to_save=100000, data_rate=data_rate),
-        dynamics_model=SM.DynamicsModel(scs, effectors), extra...)
+        dynamics_model=SpaceAGORA.DynamicsModel(scs, effectors), extra...)
     return EP.with_external_propagators(configured, get(extra, :external_propagators, props))
 end
 run_table(cfg; kwargs...) = SpaceAGORA.run_simulation(cfg; return_results=true, kwargs...).table
@@ -30,7 +30,7 @@ run_table(cfg; kwargs...) = SpaceAGORA.run_simulation(cfg; return_results=true, 
 tick_every(period) = (SM.SimulationCallbacks.PeriodicCallback(_ -> nothing, period),)
 
 @testset "scene inside run_simulation: bit-identical to the standalone runner, close to ordinary spacecraft" begin
-    effectors = (SM.InverseSquaredJ2GravityModel(),)
+    effectors = (SpaceAGORA.InverseSquaredJ2GravityModel(),)
     dt = 0.0125
     tend = 600.0; every = 50.0
     scene = make_scene(effectors; dt)
@@ -57,7 +57,7 @@ const MU_EARTH = MU
     # dense-output values of shadow entries extrapolated from a scene state up to one step old. Against the
     # scene's own state at that tick the error is the integral of the difference between the body's and the
     # chief's acceleration (the tidal term, at most 3 n^2 |rho|) over at most one scene step.
-    effectors = (SM.InverseSquaredGravityModel(),)
+    effectors = (SpaceAGORA.InverseSquaredGravityModel(),)
     dt = 0.25; tend = 100.0
     scene = make_scene(effectors; dt)
     got = samples_from_table(run_table(engine_config(effectors, tend, dt; scene)), dt, tend)
@@ -80,7 +80,7 @@ mutable struct ShadowProbe
     t::Vector{Float64}
     pos::Vector{SVector{3, Float64}}
 end
-function SM.NavigationHooks.update_navigation!(m::ShadowProbe, u, p, t::Float64, spacecraft_index::Int)
+function SpaceAGORA.update_navigation!(m::ShadowProbe, u, p, t::Float64, spacecraft_index::Int)
     if spacecraft_index == 1
         push!(m.t, t); push!(m.pos, SVector{3, Float64}(u.sc[1].pos))
     end
@@ -88,11 +88,11 @@ function SM.NavigationHooks.update_navigation!(m::ShadowProbe, u, p, t::Float64,
 end
 
 @testset "guidance and navigation read synced shadow state at GNC ticks" begin
-    effectors = (SM.InverseSquaredGravityModel(),)
+    effectors = (SpaceAGORA.InverseSquaredGravityModel(),)
     dt = 0.05; period = 0.5; tend = 20.0
     probe = ShadowProbe(Float64[], SVector{3, Float64}[])
     scene = make_scene(effectors; dt)
-    cfg = engine_config(effectors, tend, 5.0; scene, extra=(; navigation_model=SM.NavigationModel(navigation_effectors=(probe,), navigation_rates=[period])))
+    cfg = engine_config(effectors, tend, 5.0; scene, extra=(; navigation_model=SpaceAGORA.NavigationModel(navigation_effectors=(probe,), navigation_rates=[period])))
     SpaceAGORA.run_simulation(cfg; isolate_state=false)
     @test length(probe.t) >= round(Int, tend / period) - 1
     ref = make_scene(effectors; dt)
@@ -106,9 +106,9 @@ end
     end
     @test ok                                   # exactly the scene state at the tick: the sync callback runs first
     # a rate that is not a multiple of the scene step is refused
-    bad = engine_config(effectors, tend, 5.0; scene, extra=(; navigation_model=SM.NavigationModel(navigation_effectors=(probe,), navigation_rates=[0.07])))
+    bad = engine_config(effectors, tend, 5.0; scene, extra=(; navigation_model=SpaceAGORA.NavigationModel(navigation_effectors=(probe,), navigation_rates=[0.07])))
     @test_throws ArgumentError EP.validate_external_propagators(bad, :dp8)
-    good = engine_config(effectors, tend, 5.0; scene, extra=(; navigation_model=SM.NavigationModel(navigation_effectors=(probe,), navigation_rates=[0.1])))
+    good = engine_config(effectors, tend, 5.0; scene, extra=(; navigation_model=SpaceAGORA.NavigationModel(navigation_effectors=(probe,), navigation_rates=[0.1])))
     @test EP.validate_external_propagators(good, :dp8) === nothing
 end
 
@@ -135,7 +135,7 @@ quat_angle(a, b) = (c = abs(dot(a, b)); 2 * acos(min(1.0, c)))     # angle betwe
         q = SVector{4, Float64}(normalize(randn(rng, 4)))
         ω = SVector{3, Float64}(0.1 .* randn(rng, 3))
         st = [SceneBodyState("chaser", R1, V1; q=sa_to_mujoco_quaternion(q), ω=ω), SceneBodyState("target", R2, V2)]
-        sc = ProximityScene(; mjcf_xml=TWO_BODIES, dt=0.05, planet=EARTH, gravity_effectors=(SM.InverseSquaredGravityModel(),), initial_states=st)
+        sc = ProximityScene(; mjcf_xml=TWO_BODIES, dt=0.05, planet=EARTH, gravity_effectors=(SpaceAGORA.InverseSquaredGravityModel(),), initial_states=st)
         Binding.forward!(sc.model, sc.data)
         X = Binding.ximat(sc.model, sc.data)[:, 2]
         R_mj = SMatrix{3, 3, Float64}(X[1], X[4], X[7], X[2], X[5], X[8], X[3], X[6], X[9])    # row-major to matrix
@@ -156,9 +156,9 @@ quat_angle(a, b) = (c = abs(dot(a, b)); 2 * acos(min(1.0, c)))     # angle betwe
     for q in exact_unit
         @test norm(q) == 1.0
         ω = SVector{3, Float64}(randn(rng, 3))
-        ic = SM.CartesianInitialCondition(R1, V1; q=q, ang_vel=ω)
+        ic = SpaceAGORA.CartesianInitialCondition(R1, V1; q=q, ang_vel=ω)
         st = [body_state_from_initial_condition("chaser", ic), SceneBodyState("target", R2, V2)]
-        sc = ProximityScene(; mjcf_xml=TWO_BODIES, dt=0.05, planet=EARTH, gravity_effectors=(SM.InverseSquaredGravityModel(),), initial_states=st)
+        sc = ProximityScene(; mjcf_xml=TWO_BODIES, dt=0.05, planet=EARTH, gravity_effectors=(SpaceAGORA.InverseSquaredGravityModel(),), initial_states=st)
         s = scene_body_state(sc, "chaser")
         @test mujoco_to_sa_quaternion(s.q) === q
         @test s.ω === ω
@@ -169,7 +169,7 @@ quat_angle(a, b) = (c = abs(dot(a, b)); 2 * acos(min(1.0, c)))     # angle betwe
         q = SM.project_unit_quaternion(SVector{4, Float64}(randn(rng, 4)))
         ω = SVector{3, Float64}(randn(rng, 3))
         st = [SceneBodyState("chaser", R1, V1; q=sa_to_mujoco_quaternion(q), ω=ω), SceneBodyState("target", R2, V2)]
-        sc = ProximityScene(; mjcf_xml=TWO_BODIES, dt=0.05, planet=EARTH, gravity_effectors=(SM.InverseSquaredGravityModel(),), initial_states=st)
+        sc = ProximityScene(; mjcf_xml=TWO_BODIES, dt=0.05, planet=EARTH, gravity_effectors=(SpaceAGORA.InverseSquaredGravityModel(),), initial_states=st)
         s = scene_body_state(sc, "chaser")
         worst = max(worst, maximum(abs.(mujoco_to_sa_quaternion(s.q) - q)))
         @test s.ω === ω
@@ -180,13 +180,13 @@ end
 
 function spin_sc(m, I, r, v, q, ω; id=1)
     bus = mklink(root=true, m=m, dims=(1.0, 1.0, 1.0))
-    ic = SM.CartesianInitialCondition(r, v; q=q, ang_vel=ω)
-    return SM.SpacecraftModel(; joints=SM.Joint[], links=[bus], root=bus, initial_condition=ic, inertia_tensor=SMatrix{3, 3, Float64}(diagm(collect(I))), id)
+    ic = SpaceAGORA.CartesianInitialCondition(r, v; q=q, ang_vel=ω)
+    return SpaceAGORA.SpacecraftModel(; joints=SpaceAGORA.Joint[], links=[bus], root=bus, initial_condition=ic, inertia_tensor=SMatrix{3, 3, Float64}(diagm(collect(I))), id)
 end
 const QA = normalize(SVector(0.3, -0.5, 0.2, 0.8)); const QB = normalize(SVector(-0.1, 0.4, 0.7, 0.2))
 # Spin close to the axis of largest inertia (stable, so discretization errors do not grow exponentially).
 const WA = SVector(0.03, 0.02, 0.3); const WB = SVector(0.02, -0.03, 0.25)
-spin_scs() = SM.SpacecraftModel[spin_sc(20.0, (2.0, 3.0, 4.0), R1, V1, QA, WA; id=1), spin_sc(35.0, (5.0, 6.0, 7.0), R2, V2, QB, WB; id=2)]
+spin_scs() = SpaceAGORA.SpacecraftModel[spin_sc(20.0, (2.0, 3.0, 4.0), R1, V1, QA, WA; id=1), spin_sc(35.0, (5.0, 6.0, 7.0), R2, V2, QB, WB; id=2)]
 tcol(df, r, i, name, n) = SVector{n, Float64}(df[r, "sc$(i)_$(name)_$k"] for k in 1:n)
 
 function spin_errors(table, ref, rows)
@@ -198,7 +198,7 @@ function spin_errors(table, ref, rows)
 end
 
 @testset "torque-free spinning bodies: ordinary spacecraft vs scene, and negative controls" begin
-    effectors = (SM.InverseSquaredGravityModel(),)
+    effectors = (SpaceAGORA.InverseSquaredGravityModel(),)
     tend = 300.0; every = 25.0
     ref = run_table(engine_config(effectors, tend, every; scs=spin_scs(), orient=true))
     rows = [findmin(abs.(ref.time .- s))[2] for s in every:every:tend]
@@ -265,7 +265,7 @@ const V3_ = sqrt(MU / 7.2e6) .* SVector(-sin(30.0 * π / 180), 0.0, cos(30.0 * �
 ordinary_sc() = rigid_sc(10.0, (1.0, 1.0, 1.0), R3, V3_)
 # Loose tolerances with a small dt_max: the step sequence is then set by dt_max alone and does not depend on
 # how many other spacecraft share the state vector (the default RMS error norm averages over all components).
-loose_tol() = SM.IntegrationTolerances(reltol_orbit=1e-6, abstol_orbit=1e-3, reltol_atmosphere=1e-6, abstol_atmosphere=1e-3,
+loose_tol() = SpaceAGORA.IntegrationTolerances(reltol_orbit=1e-6, abstol_orbit=1e-3, reltol_atmosphere=1e-6, abstol_atmosphere=1e-3,
     reltol_quaternion=1e-6, abstol_quaternion=1e-6, reltol_mass=1e-6, abstol_mass=1e-6,
     reltol_angular_rate=1e-6, abstol_angular_rate=1e-6, dt_max_orbit=1.0, dt_max_atmosphere=1.0)
 
@@ -274,12 +274,12 @@ loose_tol() = SM.IntegrationTolerances(reltol_orbit=1e-6, abstol_orbit=1e-3, rel
     # picks its first step from the RMS norm of the whole state vector, so adding any spacecraft moves that step by
     # ~1e-3 relative and every later step time by ~1e-14 s (about 1e-8 m at orbital speed). The control run shows
     # the same effect with a second ORDINARY spacecraft; the scene must add nothing beyond it.
-    effectors = (SM.InverseSquaredJ2GravityModel(),)
+    effectors = (SpaceAGORA.InverseSquaredJ2GravityModel(),)
     tend = 600.0; every = 10.0
     sc2() = rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1; id=2)
-    alone = run_table(engine_config(effectors, tend, every; scs=SM.SpacecraftModel[ordinary_sc()], tol=loose_tol()))
-    two = run_table(engine_config(effectors, tend, every; scs=SM.SpacecraftModel[ordinary_sc(), sc2()], tol=loose_tol()))
-    scs3 = SM.SpacecraftModel[ordinary_sc(), sc2(), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=3)]
+    alone = run_table(engine_config(effectors, tend, every; scs=SpaceAGORA.SpacecraftModel[ordinary_sc()], tol=loose_tol()))
+    two = run_table(engine_config(effectors, tend, every; scs=SpaceAGORA.SpacecraftModel[ordinary_sc(), sc2()], tol=loose_tol()))
+    scs3 = SpaceAGORA.SpacecraftModel[ordinary_sc(), sc2(), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=3)]
     scene = make_scene(effectors; dt=0.05)
     mixed = run_table(engine_config(effectors, tend, every; scs=scs3, scene, owned=(2 => "chaser", 3 => "target"), tol=loose_tol()))
     maxdiff(a, b, f) = maximum(maximum(abs.(a[!, "sc1_$(f)_$k"] .- b[!, "sc1_$(f)_$k"])) for k in 1:3)
@@ -300,12 +300,12 @@ end
 # --- Monte Carlo ----------------------------------------------------------------------------------------
 
 @testset "threaded run_monte_carlo gives each sample its own scene and matches serial bit for bit" begin
-    effectors = (SM.InverseSquaredGravityModel(),)
+    effectors = (SpaceAGORA.InverseSquaredGravityModel(),)
     dt = 0.05; tend = 60.0
     template = make_scene(effectors; dt)             # one template shared by every sample and thread
     function sample(seed)
         v1 = V1 + SVector(0.0, 0.0, 1e-3 * seed)
-        scs = SM.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, v1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)]
+        scs = SpaceAGORA.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, v1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)]
         t = run_table(engine_config(effectors, tend, 10.0; scs, scene=template))
         return [t[!, c] for c in names(t) if c != "time"]
     end
@@ -329,11 +329,11 @@ end
 const ARM_XML = replace(TWO_BODIES, "</body>\n    <body name=\"target\">" => "<body name=\"link\" pos=\"0 1 0\"><joint type=\"hinge\" axis=\"0 0 1\"/><geom type=\"box\" size=\"0.1 0.5 0.1\" mass=\"1\" contype=\"0\" conaffinity=\"0\"/></body></body>\n    <body name=\"target\">")
 
 @testset "scene_body_pose_save_field: poses of bodies no spacecraft owns" begin
-    effectors = (SM.InverseSquaredGravityModel(),)
+    effectors = (SpaceAGORA.InverseSquaredGravityModel(),)
     dt = 0.05; tend = 20.0; every = 5.0
     scene = ProximityScene(; mjcf_xml=ARM_XML, dt, planet=EARTH, gravity_effectors=effectors, initial_states=states(), planet_rotation=planet_rotation)
     cfg = engine_config(effectors, tend, every; scene)
-    fields = vcat(SM.default_save_fields(cfg), [scene_body_pose_save_field("link")])
+    fields = vcat(SpaceAGORA.default_save_fields(cfg), [scene_body_pose_save_field("link")])
     tbl = SpaceAGORA.run_simulation(cfg; return_results=true, save_fields=fields, extra_callbacks=tick_every(every)).table
     @test all(c -> c in names(tbl), ["scene_pose_link_$k" for k in 1:7])
     ref = ProximityScene(; mjcf_xml=ARM_XML, dt, planet=EARTH, gravity_effectors=effectors, initial_states=states(), planet_rotation=planet_rotation)
@@ -357,28 +357,28 @@ end
 
 # A guidance effector that asks for atmosphere-interface events (a continuous event on every spacecraft).
 struct EventGuidance end
-SpaceAGORA.SimulationLifecycle.requires_atmosphere_events(::EventGuidance) = true
+SpaceAGORA.requires_atmosphere_events(::EventGuidance) = true
 
 function hinge_sc()
     bus = mklink(root=true, m=10.0, dims=(1.0, 1.0, 1.0))
     panel = mklink(m=2.0, dims=(0.05, 1.0, 0.5), r=(0.0, 1.1, 0.0))
-    joint = SM.Joint(bus, SVector(0.0, 0.5, 0.0), panel, SVector(0.0, -0.6, 0.0); joint_type=:hinge, axis=[0, 0, 1])
-    return SM.SpacecraftModel(; joints=[joint], links=[bus, panel], root=bus, initial_condition=SM.CartesianInitialCondition(R1, V1))
+    joint = SpaceAGORA.Joint(bus, SVector(0.0, 0.5, 0.0), panel, SVector(0.0, -0.6, 0.0); joint_type=:hinge, axis=[0, 0, 1])
+    return SpaceAGORA.SpacecraftModel(; joints=[joint], links=[bus, panel], root=bus, initial_condition=SpaceAGORA.CartesianInitialCondition(R1, V1))
 end
 
 function attached_sc()
     bus = mklink(root=true, m=20.0, dims=(1.0, 0.8, 0.6))
     panel = mklink(m=2.0, dims=(0.05, 1.0, 0.5))
-    node = SM.CompliantTopologyNode(:panel; mass_kg=2.0, inertia_body_kg_m2=panel.inertia, position=SVector(0.0, 0.6, 0.0))
-    edge = SM.CompliantTopologyEdge(:hold, 0, 1; parent_point_body=SVector(0.0, 0.0, 0.0), child_point_body=SVector(0.0, -0.6, 0.0),
+    node = SpaceAGORA.CompliantTopologyNode(:panel; mass_kg=2.0, inertia_body_kg_m2=panel.inertia, position=SVector(0.0, 0.6, 0.0))
+    edge = SpaceAGORA.CompliantTopologyEdge(:hold, 0, 1; parent_point_body=SVector(0.0, 0.0, 0.0), child_point_body=SVector(0.0, -0.6, 0.0),
         k_translation_n_m=2e5, c_translation_n_s_m=1e3, k_rotation_n_m_rad=2e4, c_rotation_n_m_s_rad=1e2)
-    att = SM.CompliantAttachment(; model=SM.build_compliant_topology([node], [edge]), link=bus, mount_point=(0.0, 0.5, 0.0))
-    return SM.SpacecraftModel(; joints=SM.Joint[], links=[bus], root=bus, initial_condition=SM.CartesianInitialCondition(R1, V1),
+    att = SpaceAGORA.CompliantAttachment(; model=SpaceAGORA.build_compliant_topology([node], [edge]), link=bus, mount_point=(0.0, 0.5, 0.0))
+    return SpaceAGORA.SpacecraftModel(; joints=SpaceAGORA.Joint[], links=[bus], root=bus, initial_condition=SpaceAGORA.CartesianInitialCondition(R1, V1),
         inertia_tensor=bus.inertia, attachments=[att])
 end
 
 @testset "refusals" begin
-    effectors = (SM.InverseSquaredGravityModel(),)
+    effectors = (SpaceAGORA.InverseSquaredGravityModel(),)
     scene = make_scene(effectors; dt=0.0125)
     cfg(; kw...) = engine_config(effectors, 10.0, 1.0; scene, kw...)
     # The message of the ArgumentError `f` throws (nothing if it throws something else or nothing at all).
@@ -390,8 +390,8 @@ end
     @test SpaceAGORA.run_simulation(cfg(); isolate_state=false) === nothing
 
     # checkpointing and resume
-    @test refuses(() -> SpaceAGORA.run_simulation(cfg(extra=(; simulation_settings=SM.SimulationSettings(checkpoint_enabled=true, checkpoint_interval_s=5.0, results=false, results_directory=mktempdir())))), r"checkpoint")
-    @test refuses(() -> SpaceAGORA.run_simulation(cfg(extra=(; simulation_settings=SM.SimulationSettings(resume_from_checkpoint=true, results=false, results_directory=mktempdir())))), r"checkpoint")
+    @test refuses(() -> SpaceAGORA.run_simulation(cfg(extra=(; simulation_settings=SpaceAGORA.SimulationSettings(checkpoint_enabled=true, checkpoint_interval_s=5.0, results=false, results_directory=mktempdir())))), r"checkpoint")
+    @test refuses(() -> SpaceAGORA.run_simulation(cfg(extra=(; simulation_settings=SpaceAGORA.SimulationSettings(resume_from_checkpoint=true, results=false, results_directory=mktempdir())))), r"checkpoint")
     # constellation ensembles
     @test refuses(() -> SpaceAGORA.run_constellation_ensemble(cfg()), r"externally propagated")
     # solver routes other than the first-order single-RHS modes
@@ -408,28 +408,28 @@ end
     end
     # articulated joints, compliant attachments and the cloth robot arm on a scene-owned spacecraft
     plain = rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)
-    @test refuses(() -> SpaceAGORA.run_simulation(cfg(scs=SM.SpacecraftModel[hinge_sc(), plain], orient=true)), r"articulated")
-    @test refused(cfg(scs=SM.SpacecraftModel[hinge_sc(), plain], orient=true), r"articulated joints")
-    @test refused(cfg(scs=SM.SpacecraftModel[attached_sc(), plain], orient=true), r"compliant attachments")
-    arm_model = SM.default_cloth_arm_model(link_lengths_m=(0.9, 0.8, 0.6), link_radii_m=(0.06, 0.05, 0.04), link_masses_kg=(6.0, 4.0, 2.0), mount_offset_body=(0.5, 0.0, 0.6))
-    base_pose = SM.ClothArmBasePose(SVector{3, Float64}(0.0, 0.0, 0.0), SVector{4, Float64}(0.0, 0.0, 0.0, 1.0))
-    target = SM.cloth_fk(arm_model, base_pose, [-0.12, -0.08, 0.06]).end_effector_position
-    plan = SM.plan_robot_arm_motion(arm_model, base_pose, [0.08, 0.95, -0.85], target; config=SM.RobotArmPlannerConfig(dt_s=0.1, duration_s=2.0))
-    arm = SM.RobotArmControlEffector(plan=plan, spacecraft_index=1, controller=SM.init_robot_arm_joint_mpc(plan; dt_s=0.1, horizon=6), control_dt_s=0.1)
-    @test refused(cfg(extra=(; control_model=SM.ControlModel(control_effectors=(arm,), control_rates=[0.1])), orient=true), r"robot-arm")
+    @test refuses(() -> SpaceAGORA.run_simulation(cfg(scs=SpaceAGORA.SpacecraftModel[hinge_sc(), plain], orient=true)), r"articulated")
+    @test refused(cfg(scs=SpaceAGORA.SpacecraftModel[hinge_sc(), plain], orient=true), r"articulated joints")
+    @test refused(cfg(scs=SpaceAGORA.SpacecraftModel[attached_sc(), plain], orient=true), r"compliant attachments")
+    arm_model = SpaceAGORA.default_cloth_arm_model(link_lengths_m=(0.9, 0.8, 0.6), link_radii_m=(0.06, 0.05, 0.04), link_masses_kg=(6.0, 4.0, 2.0), mount_offset_body=(0.5, 0.0, 0.6))
+    base_pose = SpaceAGORA.ClothArmBasePose(SVector{3, Float64}(0.0, 0.0, 0.0), SVector{4, Float64}(0.0, 0.0, 0.0, 1.0))
+    target = SpaceAGORA.cloth_fk(arm_model, base_pose, [-0.12, -0.08, 0.06]).end_effector_position
+    plan = SpaceAGORA.plan_robot_arm_motion(arm_model, base_pose, [0.08, 0.95, -0.85], target; config=SpaceAGORA.RobotArmPlannerConfig(dt_s=0.1, duration_s=2.0))
+    arm = SpaceAGORA.RobotArmControlEffector(plan=plan, spacecraft_index=1, controller=SpaceAGORA.init_robot_arm_joint_mpc(plan; dt_s=0.1, horizon=6), control_dt_s=0.1)
+    @test refused(cfg(extra=(; control_model=SpaceAGORA.ControlModel(control_effectors=(arm,), control_rates=[0.1])), orient=true), r"robot-arm")
     # a control effector that acts on a scene-owned spacecraft, or on every spacecraft
-    thr = SM.BaseThrusterModel(thrust=[1.0, 0.0], direction=[1.0, 1.0], Δv=[0.0, 0.0], start_burn_time=[1.0, 1.0], stop_burn_time=[2.0, 2.0], Isp=[300.0, 300.0])
-    @test refused(cfg(extra=(; control_model=SM.ControlModel(control_effectors=(thr,), control_rates=[0.1]))), r"Control effector")
-    idle = SM.BaseThrusterModel(thrust=[0.0, 0.0], direction=[1.0, 1.0], Δv=[0.0, 0.0], start_burn_time=[1.0, 1.0], stop_burn_time=[2.0, 2.0], Isp=[300.0, 300.0])
-    @test passes(cfg(extra=(; control_model=SM.ControlModel(control_effectors=(idle,), control_rates=[0.1]))))   # no thrust on an owned spacecraft
+    thr = SpaceAGORA.BaseThrusterModel(thrust=[1.0, 0.0], direction=[1.0, 1.0], Δv=[0.0, 0.0], start_burn_time=[1.0, 1.0], stop_burn_time=[2.0, 2.0], Isp=[300.0, 300.0])
+    @test refused(cfg(extra=(; control_model=SpaceAGORA.ControlModel(control_effectors=(thr,), control_rates=[0.1]))), r"Control effector")
+    idle = SpaceAGORA.BaseThrusterModel(thrust=[0.0, 0.0], direction=[1.0, 1.0], Δv=[0.0, 0.0], start_burn_time=[1.0, 1.0], stop_burn_time=[2.0, 2.0], Isp=[300.0, 300.0])
+    @test passes(cfg(extra=(; control_model=SpaceAGORA.ControlModel(control_effectors=(idle,), control_rates=[0.1]))))   # no thrust on an owned spacecraft
     # continuous events on every spacecraft: orbit-count termination, atmosphere-interface events
-    orbits = SM.MissionConfiguration(mission_type=SM.MissionOrbits, keplerian=true, number_of_orbits=1, mission_time=10.0, orientation_sim=false, num_steps_to_save=1000, data_rate=1.0)
+    orbits = SpaceAGORA.MissionConfiguration(mission_type=SpaceAGORA.MissionOrbits, keplerian=true, number_of_orbits=1, mission_time=10.0, orientation_sim=false, num_steps_to_save=1000, data_rate=1.0)
     @test refused(cfg(extra=(; mission_configuration=orbits)), r"Orbit-count")
     @test refuses(() -> SpaceAGORA.run_simulation(cfg(extra=(; mission_configuration=orbits))), r"Orbit-count")
-    @test refused(cfg(extra=(; guidance_model=SM.GuidanceModel(guidance_effectors=(EventGuidance(),), guidance_rates=[0.0125]))), r"Atmosphere-interface")
+    @test refused(cfg(extra=(; guidance_model=SpaceAGORA.GuidanceModel(guidance_effectors=(EventGuidance(),), guidance_rates=[0.0125]))), r"Atmosphere-interface")
     # rates that are not multiples of the scene step
-    @test refused(cfg(extra=(; guidance_model=SM.GuidanceModel(guidance_effectors=(thr,), guidance_rates=[0.03]))), r"integer multiple")
-    @test passes(cfg(extra=(; guidance_model=SM.GuidanceModel(guidance_effectors=(thr,), guidance_rates=[0.025]))))
+    @test refused(cfg(extra=(; guidance_model=SpaceAGORA.GuidanceModel(guidance_effectors=(thr,), guidance_rates=[0.03]))), r"integer multiple")
+    @test passes(cfg(extra=(; guidance_model=SpaceAGORA.GuidanceModel(guidance_effectors=(thr,), guidance_rates=[0.025]))))
 
     # ownership and construction
     two_scene = ProximitySceneDynamics(scene, 1 => "chaser", 2 => "target")
@@ -443,11 +443,11 @@ end
     @test_throws ArgumentError ProximitySceneDynamics(scene, 1 => "chaser", 2 => "chaser")
     @test_throws ArgumentError ProximitySceneDynamics(scene)
     # mass consistency, when requested
-    heavy = SM.SpacecraftModel[rigid_sc(21.0, (1.0, 0.8, 0.6), R1, V1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)]
+    heavy = SpaceAGORA.SpacecraftModel[rigid_sc(21.0, (1.0, 0.8, 0.6), R1, V1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)]
     with_mass(rtol, scs) = fixture_configuration(cfg(; scs); external_propagators=(ProximitySceneDynamics(scene, 1 => "chaser", 2 => "target"; mass_rtol=rtol),))
     @test refused(with_mass(1e-3, heavy), r"mass")
     @test passes(with_mass(0.1, heavy))
-    @test passes(with_mass(1e-9, SM.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)]))
+    @test passes(with_mass(1e-9, SpaceAGORA.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)]))
     # a scene with an articulated link: only free-root bodies can carry a spacecraft
     arm_scene = ProximityScene(; mjcf_xml=ARM_XML, dt=0.05, planet=EARTH, gravity_effectors=effectors, initial_states=states(), planet_rotation=planet_rotation)
     @test "link" in scene_body_names(arm_scene)

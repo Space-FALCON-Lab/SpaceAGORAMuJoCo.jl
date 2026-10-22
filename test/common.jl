@@ -3,8 +3,11 @@ using LinearAlgebra
 using SpaceAGORAMuJoCo: Binding
 using StaticArrays
 import SpaceAGORA
-using SpaceAGORA.TelemetryVerification: make_example_config
+using SpaceAGORA: make_example_config
 
+# The engine tests reach three SpaceAGORA internals that have no public name: the
+# periodic callback that aligns saves, quaternion rotation and unit-quaternion
+# projection. Everything else uses SpaceAGORA's public names.
 const SM = SpaceAGORA.SimulationModel
 const EP = SpaceAGORA.ExternalPropagationServices
 
@@ -34,11 +37,11 @@ const TWO_BODIES = """
   </worldbody>
 </mujoco>"""
 
-const EARTH = SM.make_no_gram_planet(:earth)
-const EPH = SM.SimpleEphemeridesModel()
-const T0 = SM.InitialTime(year=2014, month=5, day=27, hour=5, minute=0, second=0.0)
-const ET0 = SM.ephemerides_epoch_seconds(EPH, T0)
-planet_rotation(t) = SM.ephemerides_frame_lpi(EPH, EARTH, ET0 + t)
+const EARTH = SpaceAGORA.make_no_gram_planet(:earth)
+const EPH = SpaceAGORA.SimpleEphemeridesModel()
+const T0 = SpaceAGORA.InitialTime(year=2014, month=5, day=27, hour=5, minute=0, second=0.0)
+const ET0 = SpaceAGORA.ephemerides_epoch_seconds(EPH, T0)
+planet_rotation(t) = SpaceAGORA.ephemerides_frame_lpi(EPH, EARTH, ET0 + t)
 
 # chaser on a 51.6 deg circular orbit at r = 7000 km; the target is ~50 m away with a small velocity offset.
 const R1 = SVector(7.0e6, 0.0, 0.0)
@@ -58,28 +61,28 @@ make_scene(effectors; dt, kwargs...) = ProximityScene(; mjcf_xml=TWO_BODIES, dt,
 
 # --- the same two bodies as ordinary SpaceAGORA spacecraft ---------------------------------------------
 
-mklink(; root=false, m, dims, r=(0.0, 0.0, 0.0)) = SM.Link(root=root, m=m, dims=MVector{3, Float64}(dims...), r=MVector{3, Float64}(r...), q=MVector{4, Float64}(0, 0, 0, 1))
+mklink(; root=false, m, dims, r=(0.0, 0.0, 0.0)) = SpaceAGORA.Link(root=root, m=m, dims=MVector{3, Float64}(dims...), r=MVector{3, Float64}(r...), q=MVector{4, Float64}(0, 0, 0, 1))
 # Spacecraft that run together need distinct ids; the tests number them by position.
 function rigid_sc(m, dims, r, v; id=1)
     bus = mklink(root=true, m=m, dims=dims)
-    ic = SM.CartesianInitialCondition(r, v)
-    return SM.SpacecraftModel(; joints=SM.Joint[], links=[bus], root=bus, initial_condition=ic, inertia_tensor=bus.inertia, id)
+    ic = SpaceAGORA.CartesianInitialCondition(r, v)
+    return SpaceAGORA.SpacecraftModel(; joints=SpaceAGORA.Joint[], links=[bus], root=bus, initial_condition=ic, inertia_tensor=bus.inertia, id)
 end
 function engine_reference(effectors, tend, data_rate)
-    tol = SM.IntegrationTolerances(reltol_orbit=1e-12, abstol_orbit=1e-9, reltol_atmosphere=1e-12, abstol_atmosphere=1e-9,
+    tol = SpaceAGORA.IntegrationTolerances(reltol_orbit=1e-12, abstol_orbit=1e-9, reltol_atmosphere=1e-12, abstol_atmosphere=1e-9,
         reltol_quaternion=1e-12, abstol_quaternion=1e-9, reltol_mass=1e-12, abstol_mass=1e-9,
         reltol_angular_rate=1e-12, abstol_angular_rate=1e-9, dt_max_orbit=0.5, dt_max_atmosphere=0.5)
-    scs = SM.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)]
+    scs = SpaceAGORA.SpacecraftModel[rigid_sc(20.0, (1.0, 0.8, 0.6), R1, V1; id=1), rigid_sc(35.0, (1.2, 1.2, 1.2), R2, V2; id=2)]
     base = make_example_config(planet=EARTH, spacecraft=scs[1], mission_time=tend, initial_time=T0,
-        dynamic_effectors=effectors, density_model=SM.NoAtmosphereModel(), ephemerides_model=EPH,
+        dynamic_effectors=effectors, density_model=SpaceAGORA.NoAtmosphereModel(), ephemerides_model=EPH,
         orientation_sim=false, keplerian=true, verbose=false, results=false, results_directory=mktempdir(),
-        solver_config=SM.SolverConfig(solver_mode=:dp8))
+        solver_config=SpaceAGORA.SolverConfig(solver_mode=:dp8))
     args = fixture_configuration(base;
         integration_tolerances=tol,
-        mission_configuration=SM.MissionConfiguration(
+        mission_configuration=SpaceAGORA.MissionConfiguration(
             mission_type=base.mission_configuration.mission_type, keplerian=true, number_of_orbits=1,
             mission_time=tend, orientation_sim=false, num_steps_to_save=100000, data_rate=data_rate),
-        dynamics_model=SM.DynamicsModel(scs, effectors))
+        dynamics_model=SpaceAGORA.DynamicsModel(scs, effectors))
     return SpaceAGORA.run_simulation(args; return_results=true).table
 end
 
