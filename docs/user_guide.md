@@ -9,12 +9,35 @@ spacecraft during a SpaceAGORA simulation.
 
 The companion is optional. Installing or importing SpaceAGORA alone does not
 load MuJoCo. The current native binding requires Julia 1.12 and Linux x86_64 and
-uses the pinned MuJoCo 3.11.0 artifact. Follow the
-[installation instructions](../README.md#installation) to create a separate
-environment before running the examples below. The
-[published release](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/releases/tag/v0.1.0) identifies the qualified core and companion
-revisions; a matching package version number alone is insufficient to establish
-compatibility.
+uses the pinned MuJoCo 3.11.0 artifact.
+
+## Choose the guide and source pair together
+
+This version of the guide uses `ExternalPropagationServices` contract 2.0.0,
+as the releases from v0.2.0 on do; v0.5.0 pins SpaceAGORA 0.6.0. The v0.1.0
+release uses contract 1.0.0; if you install that release, use its
+[tagged user guide](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/blob/v0.1.0/docs/user_guide.md)
+and [release record](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/releases/tag/v0.1.0).
+Do not combine its environment with the current coupled example below.
+
+To follow the current guide, prepare an environment from the companion checkout
+that contains it. For a new checkout of the default branch (add
+`git checkout --detach v0.5.0` after `cd` to use the v0.5.0 release instead):
+
+```sh
+git clone https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl.git
+cd SpaceAGORAMuJoCo.jl
+unset SPACEAGORA_CORE_PATH SPACEAGORA_CORE_REV
+julia --startup-file=no scripts/setup_env.jl /path/to/mujoco-env
+JULIA_LOAD_PATH='@:@stdlib' julia --startup-file=no --project=/path/to/mujoco-env
+```
+
+Setup selects this checkout and the exact core revision in its `Project.toml`.
+Keep the checkout, environment and managed `sources/` directory available: the
+manifest refers to those local paths. This is the current-checkout route, not a
+claim that every default-branch revision is a qualified release. Record both
+source revisions with a study. The [installation guide](../README.md#installation)
+explains dependency setup and the published-release route.
 
 If you already have a SpaceAGORA source checkout, its
 [Robotics package setup](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/main/packages/robotics/README.md)
@@ -299,7 +322,7 @@ of ownership, the stated solver mode and configuration restrictions. Run setup
 still performs routing and native preparation checks. Users of this adapter do
 not need to implement the service hooks or access engine storage. Authors of
 other adapters should use the
-[versioned service contract](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/0a86898c52c16c09aa187c761cc5ef37082ee8a5/docs/src/maintainer/external_propagation_services.md).
+[versioned service contract](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/0487e8226107592b19221618f0f21f500cf2aacf/docs/src/reference/external_propagation_services.md).
 
 ## Reading coupled output
 

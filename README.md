@@ -12,21 +12,22 @@ then read how the scene [connects to SpaceAGORA](#connection-to-spaceagora).
 [Compatibility](#compatibility) and [validation limits](#validation-and-limits)
 explain which configurations are supported.
 
-[MuJoCo for SpaceAGORA v0.1.0](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/releases/tag/v0.1.0)
-is published. Its release page identifies the qualified source pair and native
-test evidence. The earlier [release preparation record](docs/releases/v0.1.0.md)
-is retained as historical documentation.
+The current release, [MuJoCo for SpaceAGORA v0.5.0](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/releases/tag/v0.5.0),
+pairs this companion with SpaceAGORA 0.6.0 and `ExternalPropagationServices`
+contract 2.0.0; its release page identifies the source pair. Releases from v0.2.0
+on use that contract. The first release, v0.1.0, used contract 1.0.0 with its own
+pinned core; its [release preparation record](docs/releases/v0.1.0.md) is retained
+as historical documentation.
 
 ## Installation
 
-Native scenes support **Linux x86_64** and require Julia 1.12 and Git. The
-published release was tested with Julia 1.12.3. To install that release in a
-separate environment:
+Native scenes support **Linux x86_64** and require Julia 1.12 and Git. To install
+the v0.5.0 release in a separate environment:
 
 ```sh
 git clone https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl.git
 cd SpaceAGORAMuJoCo.jl
-git checkout --detach v0.1.0
+git checkout --detach v0.5.0
 unset SPACEAGORA_CORE_PATH SPACEAGORA_CORE_REV
 julia --startup-file=no scripts/setup_env.jl /path/to/mujoco-env
 JULIA_LOAD_PATH='@:@stdlib' julia --startup-file=no --project=/path/to/mujoco-env
@@ -50,6 +51,12 @@ Setup installs dependencies and precompiles Julia packages. The lazy MuJoCo
 3.11.0 artifact downloads when a native operation first needs it; its archive
 and unpacked tree are checked against `Artifacts.toml`.
 
+Without the `git checkout` line, setup uses the default branch and the core
+revision its `Project.toml` records. The
+[user guide](docs/user_guide.md#choose-the-guide-and-source-pair-together)
+describes both routes; keep the guide, the companion and the core from the same
+pair.
+
 ## First example
 
 The [two-spacecraft example](docs/user_guide.md#a-complete-standalone-example)
@@ -70,8 +77,8 @@ forces.
 ## Connection to SpaceAGORA
 
 The companion implements `SpaceAGORA.ExternalPropagationServices` contract
-**2.0.0**; the published v0.1.0 release implements contract 1.0.0 with its own
-pinned core. `ProximitySceneDynamics` assigns the scene exclusive propagation
+**2.0.0**, as every release from v0.2.0 on does; v0.1.0 implemented contract 1.0.0
+with its own pinned core. `ProximitySceneDynamics` assigns the scene exclusive propagation
 ownership of selected spacecraft. Each coupled run prepares its own native
 scene from the template; other spacecraft may continue to use the core
 propagator in the same run.

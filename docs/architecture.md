@@ -1,8 +1,15 @@
-# MuJoCo proximity scenes: companion architecture (Stages 0 to 2)
+# MuJoCo proximity scenes: companion architecture
 
-Developer note for `SpaceAGORAMuJoCo.jl`. Design basis: the 2026-10-06 MuJoCo extension design memo
-(coupling option c, chief frame, Encke gravity). This note records what Stage 1 built and the Stage 0
-dependency decision.
+This note is for developers changing the scene runner or its SpaceAGORA adapter.
+Start with the [user guide](user_guide.md) for a complete example and the frame
+conventions. Here, the packaging and source map identify the owners, the runner
+section follows one native step, and the coupling section explains how a scene
+participates in a core simulation.
+
+The design follows the 2026-10-06 extension memo: a chief-centered frame and Encke
+gravity. Stage 0 selected the native library, Stage 1 built the standalone runner,
+and Stage 2 added coupled propagation. Their measurements are retained below as
+historical evidence.
 
 ## Packaging
 
@@ -11,8 +18,9 @@ own `Project.toml`, lazy `Artifacts.toml`, source, tests and CI. The package UUI
 MuJoCo binding and scientific models are preserved from the original in-tree
 package. Core remains independent of MuJoCo. Installation explicitly selects the
 tested core commit from `Project.toml`; the `0.5, 0.6` compatibility families
-alone do not assert support. See the repository README for the independent setup
-and core checkout override.
+alone do not assert support. See the [user guide](user_guide.md#choose-the-guide-and-source-pair-together)
+for the current source pair and the [README](../README.md#compatibility) for core
+checkout overrides.
 
 The adapter follows the same versioned-service pattern as the optional HYPR
 adapter. `SpaceAGORA.ExternalPropagationServices` owns contract 2.0.0, domain
@@ -37,8 +45,10 @@ Platforms other than Linux x86_64 raise an unsupported-platform error. License i
 |---|---|
 | `src/binding.jl` | The only file that calls libmujoco: 21 C entry points resolved with `dlsym`, `MjModel`/`MjData` owners freed by `close` or, failing that, their finalizers (every call checks that the owner is still open), field access at byte offsets from the 3.11.0 headers (`offsetof`). `api()` refuses any `mj_version()` other than 3011000. |
 | `src/proximity_scene.jl` | `ProximityScene`, state types and the runner. |
+| `src/engine_coupling.jl` | The external-propagation owner, per-run preparation and synchronization with SpaceAGORA. |
 | `test/binding_tests.jl` | Checks every offset against an `mj_*` readback or an MJCF-fixed value; `close` on the owners. |
 | `test/scene_tests.jl` | Free-body agreement with ordinary spacecraft, determinism, state round trip, validation, a_fb, leak loop, `close` and use after close, arena use. |
+| `test/engine_tests.jl` | Coupled state synchronization, ownership, attitude conventions and refused configurations. |
 
 ## Runner
 
@@ -49,11 +59,17 @@ scene owns its `mjModel` copy and `mjData` and writes no global state; the step 
 `scene_reset!(scene[, states])`, `scene_state`, `scene_set_state!` and `copy(scene)` are the hooks a vectorized
 (RL) runner builds on.
 
-One step, with `t = t0 + n dt` from an integer counter: `mj_step1` (fresh kinematics) -> per-body wrench
-`m_i dg_i + F_ext_i - m_i a_fb` from those kinematics, at the COM in world (ECI-parallel) axes, into
-`xfrc_applied` -> `mj_step2` -> chief RK4 under SpaceAGORA's gravity plus `a_fb` -> `n += 1`. The chief is the
-scene's mass-weighted COM at reset; `opt.gravity` is zero; the integrator is `implicitfast` by default and
-`dt` is required. Wrenches are held for one `dt`, so the scene is first order in `dt` (measured below).
+The integer step counter defines time as `t = t0 + n dt`. Each step first calls
+`mj_step1` to update the kinematics, then writes the per-body wrench
+`m_i dg_i + F_ext_i - m_i a_fb` to `xfrc_applied`. The wrench acts at the center of
+mass in world axes, which remain parallel to ECI. After `mj_step2` advances the
+native bodies, the chief advances with RK4 under SpaceAGORA gravity plus `a_fb`,
+and the counter increments.
+
+At reset, the chief is the scene's mass-weighted center of mass. MuJoCo's uniform
+`opt.gravity` is zero, `dt` is required, and the native integrator defaults to
+`implicitfast`. The wrenches are held for one `dt`, so the complete scene method
+is first order in `dt`; the chief's RK4 update does not change that order.
 
 Core gravity and frame functions are reached through public names and the versioned
 `ExternalPropagationServices` facade. Initial-state and runtime access use its
