@@ -40,7 +40,8 @@ using SpaceAGORA, SpaceAGORAMuJoCo
 ```
 
 The installer checks out the exact SpaceAGORA revision recorded in
-`Project.toml`, develops that source and this companion, and creates the
+`SpaceAGORASource.toml` on the development branch (`Project.toml` on the
+immutable v0.5.0 tag), develops that source and this companion, and creates the
 environment's manifest. Keep the companion checkout, environment and its
 `sources/` directory together: the environment refers to those local paths.
 Repeat setup reuses the managed core checkout only when its source, revision,
@@ -52,7 +53,7 @@ Setup installs dependencies and precompiles Julia packages. The lazy MuJoCo
 and unpacked tree are checked against `Artifacts.toml`.
 
 Without the `git checkout` line, setup uses the default branch and the core
-revision its `Project.toml` records. The
+revision its `SpaceAGORASource.toml` records. The
 [user guide](docs/user_guide.md#choose-the-guide-and-source-pair-together)
 describes both routes; keep the guide, the companion and the core from the same
 pair.
@@ -115,11 +116,13 @@ The `SpaceAGORA = "0.5, 0.6"` entry is a version-family constraint. SpaceAGORA
 longer uses. SpaceAGORA 0.6.0 changes the HYPR and EDG service contracts and
 keeps `ExternalPropagationServices` contract 2.0.0, so both families provide the
 contract this package implements. The pinned core revision is SpaceAGORA 0.6.0,
-the `[sources]` entry in `Project.toml`. The supported
+recorded in `SpaceAGORASource.toml` on this branch (unchanged from the v0.5.0
+release pair). The supported
 standalone default is the **exact core source pin plus
 `ExternalPropagationServices` contract 2.0.0**; the version families alone do
 not qualify another source revision.
-Source entries do not propagate into arbitrary consumer environments, so use the
+This separate pin file is consumed by the installer and contributor workflow;
+Pkg does not read it when adding the companion to another environment. Use the
 installer or explicitly select that core revision before adding the companion.
 
 The adapter checks the contract before defining hook methods and again at
@@ -157,6 +160,19 @@ julia --startup-file=no --project=/path/to/mujoco-env test/core_only.jl
 julia --startup-file=no --project=/path/to/mujoco-env test/incompatible_core.jl
 julia --startup-file=no --project=/path/to/mujoco-env test/missing_native.jl
 ```
+
+For the default pair, CI calls SpaceAGORA's reusable contributor workflow at the
+same exact revision as `SpaceAGORASource.toml`. It builds a separate environment
+seeded from the core manifest, precompiles strictly, and runs the suite, both
+load orders and incompatible-core refusal with deprecations treated as errors.
+Its direct test runner does not add Pkg.test's forced bounds-checking flag.
+
+The companion's independent installation job retains installer/source-acquisition
+checks, core-only isolation, a core-first smoke check, missing-library refusal,
+and mandatory native tests with four threads and `SPACEAGORA_MUJOCO_REQUIRED=1`.
+The Python benchmark guards and release-pin job remain separate. A manually
+requested `core_revision` skips the fixed-pair reusable call and retains both
+load orders and mismatch refusal in the installer environment for that override.
 
 The standalone CI installs from scratch and runs both import orders, core-only
 isolation, early contract-mismatch refusal, contract conformance, the refusal of a

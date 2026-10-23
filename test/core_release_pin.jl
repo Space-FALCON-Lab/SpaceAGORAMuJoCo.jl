@@ -1,12 +1,12 @@
 # The integration checks run against a released SpaceAGORA: the core commit pinned
-# in Project.toml's [sources] must be the commit of a SpaceAGORA release tag, and
+# in SpaceAGORASource.toml must be the commit of a SpaceAGORA release tag, and
 # this package's compatibility range must admit that release. Needs network access
 # to the core repository; CI runs it as its own job.
 #   julia --startup-file=no test/core_release_pin.jl
 using Pkg, Test, TOML
 
 project = TOML.parsefile(joinpath(@__DIR__, "..", "Project.toml"))
-pin = project["sources"]["SpaceAGORA"]
+pin = TOML.parsefile(joinpath(@__DIR__, "..", "SpaceAGORASource.toml"))
 
 # Release versions whose tag points at `revision` (an annotated tag through its ^{} line).
 function release_versions(url, revision)

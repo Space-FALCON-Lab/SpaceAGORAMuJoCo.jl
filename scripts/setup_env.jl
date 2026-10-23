@@ -15,7 +15,8 @@ function installation_plan(directory::AbstractString;
     destination = ispath(directory) ? realpath(directory) : abspath(directory)
     destination == PACKAGE_ROOT && throw(ArgumentError("Choose a separate environment directory, not the companion checkout"))
     isempty(core_path) || isempty(core_revision) || throw(ArgumentError("Set only one of SPACEAGORA_CORE_PATH and SPACEAGORA_CORE_REV"))
-    pin = project["sources"]["SpaceAGORA"]
+    pin = TOML.parsefile(joinpath(PACKAGE_ROOT, "SpaceAGORASource.toml"))
+    pin["uuid"] == project["deps"]["SpaceAGORA"] || throw(ArgumentError("SpaceAGORASource.toml must identify the SpaceAGORA dependency"))
     if isempty(core_path)
         revision = lowercase(isempty(core_revision) ? pin["rev"] : String(core_revision))
         occursin(r"^[0-9a-fA-F]{40}$", revision) || throw(ArgumentError("SpaceAGORA must be pinned to a full 40-character commit SHA"))

@@ -14,6 +14,20 @@ permissions:
   contents: read
 
 jobs:
+  contributor-contract:
+    # The reusable call and pin certify the default pair. Override probes below
+    # retain their own load-order/refusal checks against the requested revision.
+    if: ${{ inputs.core_revision == '' }}
+    uses: Space-FALCON-Lab/SpaceAGORA.jl/.github/workflows/contributor-ci.yml@0487e8226107592b19221618f0f21f500cf2aacf
+    with:
+      spaceagora-rev: 0487e8226107592b19221618f0f21f500cf2aacf
+      kind: companion
+      julia-version: '1.12.3'
+      manifest: core
+      depwarn: error
+      threads: '4'
+      load-orders: true
+
   installation-and-native-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -41,10 +55,12 @@ jobs:
       - name: Core-only import and compatibility isolation
         run: julia --startup-file=no --project="$RUNNER_TEMP/mujoco-env" test/core_only.jl
       - name: Reject an incompatible contract before defining the adapter
+        if: ${{ inputs.core_revision != '' }}
         run: julia --startup-file=no --project="$RUNNER_TEMP/mujoco-env" test/incompatible_core.jl
       - name: Core-first adapter load and contract conformance
         run: julia --startup-file=no --project="$RUNNER_TEMP/mujoco-env" test/load_order.jl core-first
       - name: Companion-first adapter load and contract conformance
+        if: ${{ inputs.core_revision != '' }}
         run: julia --startup-file=no --project="$RUNNER_TEMP/mujoco-env" test/load_order.jl companion-first
       - name: Refuse a scene without the MuJoCo library
         run: julia --startup-file=no --project="$RUNNER_TEMP/mujoco-env" test/missing_native.jl
