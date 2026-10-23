@@ -111,7 +111,9 @@ before combining models.
 
 ## Compatibility
 
-The `SpaceAGORA = "0.5, 0.6"` entry is a version-family constraint. SpaceAGORA
+The current checkout's `SpaceAGORA = "0.5, 0.6, 0.7"` entry is a version-family
+constraint. The 0.7 addition belongs to this source revision, not the existing
+v0.5.0 companion tag. SpaceAGORA
 0.5.0 removes the extension-hook names deprecated in 0.3.0, which this package no
 longer uses. SpaceAGORA 0.6.0 changes the HYPR and EDG service contracts and
 keeps `ExternalPropagationServices` contract 2.0.0, so both families provide the

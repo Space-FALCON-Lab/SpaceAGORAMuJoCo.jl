@@ -11,7 +11,7 @@ using .CompanionInstallation
     @test !haskey(get(project, "sources", Dict()), "SpaceAGORA")
     @test pin["version"] == "0.6.0"
     @test project["uuid"] == "a46e04e1-adb7-43c3-a03b-26575bf4fb67"
-    @test project["compat"]["SpaceAGORA"] == "0.5, 0.6"  # outer families only; the exact pin and contract are required
+    @test project["compat"]["SpaceAGORA"] == "0.5, 0.6, 0.7"  # outer families only; the exact pin and contract are required
     @testset "declared standard-library identities" begin
         # Read this Julia installation's identifiers, rather than maintaining a
         # second handwritten UUID table that could repeat a metadata typo.
