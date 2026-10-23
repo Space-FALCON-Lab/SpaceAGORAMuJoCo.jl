@@ -1,0 +1,5 @@
+# The standalone installer and reusable workflow share this exact core pin.
+url = "https://github.com/Space-FALCON-Lab/SpaceAGORA.jl.git"
+uuid = "afbfb69f-5c0b-4832-b760-43725dff8540"
+rev = "0487e8226107592b19221618f0f21f500cf2aacf"
+version = "0.6.0"

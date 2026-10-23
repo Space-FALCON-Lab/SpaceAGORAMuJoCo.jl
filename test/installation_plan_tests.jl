@@ -6,6 +6,10 @@ using .CompanionInstallation
 @testset "independent companion installation plan" begin
     package = dirname(@__DIR__)
     project = TOML.parsefile(joinpath(package, "Project.toml"))
+    pin = TOML.parsefile(joinpath(package, "SpaceAGORASource.toml"))
+    @test pin["uuid"] == project["deps"]["SpaceAGORA"]
+    @test !haskey(get(project, "sources", Dict()), "SpaceAGORA")
+    @test pin["version"] == "0.6.0"
     @test project["uuid"] == "a46e04e1-adb7-43c3-a03b-26575bf4fb67"
     @test project["compat"]["SpaceAGORA"] == "0.5, 0.6"  # outer families only; the exact pin and contract are required
     @testset "declared standard-library identities" begin
@@ -23,7 +27,8 @@ using .CompanionInstallation
     mktempdir() do directory
         env = joinpath(directory, "environment")
         default = CompanionInstallation.installation_plan(env; core_path="", core_revision="")
-        @test default.core.revision == project["sources"]["SpaceAGORA"]["rev"]
+        @test default.core.revision == pin["rev"]
+        @test default.core.url == pin["url"]
         @test default.core.path === nothing
         @test !ispath(env)  # planning never activates or creates an environment
         @test Set(keys(default.dependencies)) == union(setdiff(Set(keys(project["deps"])), ["SpaceAGORA"]), Set(keys(project["extras"])))

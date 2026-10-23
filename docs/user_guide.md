@@ -32,7 +32,7 @@ julia --startup-file=no scripts/setup_env.jl /path/to/mujoco-env
 JULIA_LOAD_PATH='@:@stdlib' julia --startup-file=no --project=/path/to/mujoco-env
 ```
 
-Setup selects this checkout and the exact core revision in its `Project.toml`.
+Setup selects this checkout and the exact core revision in its `SpaceAGORASource.toml`.
 Keep the checkout, environment and managed `sources/` directory available: the
 manifest refers to those local paths. This is the current-checkout route, not a
 claim that every default-branch revision is a qualified release. Record both
@@ -43,7 +43,8 @@ If you already have a SpaceAGORA source checkout, its
 [Robotics package setup](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/main/packages/robotics/README.md)
 can install the recorded companion under `packages/robotics/SpaceAGORAMuJoCo.jl`
 into a separate environment. That route uses your core checkout; the standalone
-installer uses the core pin in this companion's `Project.toml`.
+installer uses `SpaceAGORASource.toml` on the development branch; the immutable
+v0.5.0 tag records the same pin in `Project.toml`.
 
 Start with the [complete standalone example](#a-complete-standalone-example),
 then [carry it inside SpaceAGORA](#carrying-the-scene-inside-spaceagora).

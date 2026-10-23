@@ -11,9 +11,6 @@ Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 SpaceAGORA = "afbfb69f-5c0b-4832-b760-43725dff8540"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
-[sources]
-SpaceAGORA = {url = "https://github.com/Space-FALCON-Lab/SpaceAGORA.jl.git", rev = "0487e8226107592b19221618f0f21f500cf2aacf"}
-
 [compat]
 SpaceAGORA = "0.5, 0.6"
 StaticArrays = "1"
