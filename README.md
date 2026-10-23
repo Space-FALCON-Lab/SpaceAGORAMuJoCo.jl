@@ -167,12 +167,13 @@ seeded from the core manifest, precompiles strictly, and runs the suite, both
 load orders and incompatible-core refusal with deprecations treated as errors.
 Its direct test runner does not add Pkg.test's forced bounds-checking flag.
 
-The companion's independent installation job retains installer/source-acquisition
-checks, core-only isolation, a core-first smoke check, missing-library refusal,
-and mandatory native tests with four threads and `SPACEAGORA_MUJOCO_REQUIRED=1`.
-The Python benchmark guards and release-pin job remain separate. A manually
-requested `core_revision` skips the fixed-pair reusable call and retains both
-load orders and mismatch refusal in the installer environment for that override.
+The required independent installation job runs installer/source-acquisition
+checks, core-only isolation, both load orders, incompatible-core and missing-library
+refusal, and mandatory native tests with four threads and
+`SPACEAGORA_MUJOCO_REQUIRED=1` on every push and pull request. The Python benchmark
+guards and release-pin job remain separate. A manually requested `core_revision`
+skips the fixed-pair reusable call; the installer job runs the same checks against
+that override.
 
 The standalone CI installs from scratch and runs both import orders, core-only
 isolation, early contract-mismatch refusal, contract conformance, the refusal of a
