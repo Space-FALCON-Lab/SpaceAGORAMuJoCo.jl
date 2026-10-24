@@ -18,9 +18,9 @@ jobs:
     # The reusable call and pin certify the default pair. The required installer
     # job always checks both load orders and refusal, including override probes.
     if: ${{ inputs.core_revision == '' }}
-    uses: Space-FALCON-Lab/SpaceAGORA.jl/.github/workflows/contributor-ci.yml@0487e8226107592b19221618f0f21f500cf2aacf
+    uses: Space-FALCON-Lab/SpaceAGORA.jl/.github/workflows/contributor-ci.yml@bec28fcc348b48c6e807d007f9a5009e253e8340
     with:
-      spaceagora-rev: 0487e8226107592b19221618f0f21f500cf2aacf
+      spaceagora-rev: bec28fcc348b48c6e807d007f9a5009e253e8340
       kind: companion
       julia-version: '1.12.3'
       manifest: core

@@ -14,7 +14,8 @@ uses the pinned MuJoCo 3.11.0 artifact.
 ## Choose the guide and source pair together
 
 This version of the guide uses `ExternalPropagationServices` contract 2.0.0,
-as the releases from v0.2.0 on do; v0.5.0 pins SpaceAGORA 0.6.0. The v0.1.0
+as the releases from v0.2.0 on do. The current checkout pins SpaceAGORA v0.7.0;
+the existing companion v0.5.0 tag pins SpaceAGORA v0.6.0. The v0.1.0
 release uses contract 1.0.0; if you install that release, use its
 [tagged user guide](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/blob/v0.1.0/docs/user_guide.md)
 and [release record](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/releases/tag/v0.1.0).
@@ -37,14 +38,14 @@ Keep the checkout, environment and managed `sources/` directory available: the
 manifest refers to those local paths. This is the current-checkout route, not a
 claim that every default-branch revision is a qualified release. Record both
 source revisions with a study. The [installation guide](../README.md#installation)
-explains dependency setup and the published-release route.
+explains dependency setup and the distinction from published companion releases.
 
 If you already have a SpaceAGORA source checkout, its
 [Robotics package setup](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/main/packages/robotics/README.md)
 can install the recorded companion under `packages/robotics/SpaceAGORAMuJoCo.jl`
 into a separate environment. That route uses your core checkout; the standalone
 installer uses `SpaceAGORASource.toml` on the development branch; the immutable
-v0.5.0 tag records the same pin in `Project.toml`.
+v0.5.0 tag records its historical SpaceAGORA v0.6.0 pin in `Project.toml`.
 
 Start with the [complete standalone example](#a-complete-standalone-example),
 then [carry it inside SpaceAGORA](#carrying-the-scene-inside-spaceagora).
@@ -323,7 +324,7 @@ of ownership, the stated solver mode and configuration restrictions. Run setup
 still performs routing and native preparation checks. Users of this adapter do
 not need to implement the service hooks or access engine storage. Authors of
 other adapters should use the
-[versioned service contract](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/0487e8226107592b19221618f0f21f500cf2aacf/docs/src/reference/external_propagation_services.md).
+[versioned service contract](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/bec28fcc348b48c6e807d007f9a5009e253e8340/docs/src/reference/external_propagation_services.md).
 
 ## Reading coupled output
 

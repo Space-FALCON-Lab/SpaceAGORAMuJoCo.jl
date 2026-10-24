@@ -12,22 +12,23 @@ then read how the scene [connects to SpaceAGORA](#connection-to-spaceagora).
 [Compatibility](#compatibility) and [validation limits](#validation-and-limits)
 explain which configurations are supported.
 
-The current release, [MuJoCo for SpaceAGORA v0.5.0](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/releases/tag/v0.5.0),
+The existing release, [MuJoCo for SpaceAGORA v0.5.0](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/releases/tag/v0.5.0),
 pairs this companion with SpaceAGORA 0.6.0 and `ExternalPropagationServices`
 contract 2.0.0; its release page identifies the source pair. Releases from v0.2.0
 on use that contract. The first release, v0.1.0, used contract 1.0.0 with its own
 pinned core; its [release preparation record](docs/releases/v0.1.0.md) is retained
-as historical documentation.
+as historical documentation. The current checkout pins SpaceAGORA v0.7.0 for
+both its standalone installer and reusable contributor workflow, with the same
+external-propagation contract.
 
 ## Installation
 
 Native scenes support **Linux x86_64** and require Julia 1.12 and Git. To install
-the v0.5.0 release in a separate environment:
+the current checkout in a separate environment:
 
 ```sh
 git clone https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl.git
 cd SpaceAGORAMuJoCo.jl
-git checkout --detach v0.5.0
 unset SPACEAGORA_CORE_PATH SPACEAGORA_CORE_REV
 julia --startup-file=no scripts/setup_env.jl /path/to/mujoco-env
 JULIA_LOAD_PATH='@:@stdlib' julia --startup-file=no --project=/path/to/mujoco-env
@@ -117,9 +118,10 @@ v0.5.0 companion tag. SpaceAGORA
 0.5.0 removes the extension-hook names deprecated in 0.3.0, which this package no
 longer uses. SpaceAGORA 0.6.0 changes the HYPR and EDG service contracts and
 keeps `ExternalPropagationServices` contract 2.0.0, so both families provide the
-contract this package implements. The pinned core revision is SpaceAGORA 0.6.0,
-recorded in `SpaceAGORASource.toml` on this branch (unchanged from the v0.5.0
-release pair). The supported
+contract this package implements. The current pinned core is SpaceAGORA 0.7.0,
+recorded in `SpaceAGORASource.toml`; it retains the same external-propagation
+contract. This pairing belongs to the current checkout, not the existing
+companion release tag. The supported
 standalone default is the **exact core source pin plus
 `ExternalPropagationServices` contract 2.0.0**; the version families alone do
 not qualify another source revision.
@@ -129,8 +131,8 @@ installer or explicitly select that core revision before adding the companion.
 
 The adapter checks the contract before defining hook methods and again at
 runtime initialization, including when loading a precompiled package. The
-[adapter standard](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/0487e8226107592b19221618f0f21f500cf2aacf/docs/src/reference/adapter_contract.md)
-and [external propagation reference](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/0487e8226107592b19221618f0f21f500cf2aacf/docs/src/reference/external_propagation_services.md)
+[adapter standard](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/bec28fcc348b48c6e807d007f9a5009e253e8340/docs/src/reference/adapter_contract.md)
+and [external propagation reference](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/bec28fcc348b48c6e807d007f9a5009e253e8340/docs/src/reference/external_propagation_services.md)
 describe the core-owned interface. The [architecture note](docs/architecture.md)
 explains scene ownership and synchronization.
 

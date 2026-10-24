@@ -9,7 +9,7 @@ using .CompanionInstallation
     pin = TOML.parsefile(joinpath(package, "SpaceAGORASource.toml"))
     @test pin["uuid"] == project["deps"]["SpaceAGORA"]
     @test !haskey(get(project, "sources", Dict()), "SpaceAGORA")
-    @test pin["version"] == "0.6.0"
+    @test pin["version"] == "0.7.0"
     @test project["uuid"] == "a46e04e1-adb7-43c3-a03b-26575bf4fb67"
     @test project["compat"]["SpaceAGORA"] == "0.5, 0.6, 0.7"  # outer families only; the exact pin and contract are required
     @testset "declared standard-library identities" begin
