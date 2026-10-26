@@ -1,14 +1,14 @@
 # SpaceAGORA ProximityScene vs Basilisk 2.12 MJScene
 
-Accuracy cross-validation (not timing) of `SpaceAGORAMuJoCo.jl` (`ProximityScene`, PR #237) against the
+An accuracy cross-validation (not a timing study) of `SpaceAGORAMuJoCo.jl`'s `ProximityScene` against the
 MuJoCo-based `MJScene` of Basilisk 2.12. Both tools run MuJoCo 3.11.0 on the same MJCF, the same point-mass Earth
 field (mu = 3.98600436233e14 m^3/s^2, SpaceAGORA's Earth, also set on the Basilisk body) and the same initial state:
 400 km circular orbit, 51.6 deg, (r, 0, 0) with v = sqrt(mu/r)(0, cos i, sin i).
 
-Acceptance (owner-approved): for each case and quantity, a dt-halving self-convergence study on each side, and
+Acceptance criterion: for each case and quantity, a dt-halving self-convergence study on each side, and
 D <= k max(e_S, e_B) with k = 10, where D is the cross-tool difference between the finest runs and e_S, e_B are the
-differences between each tool's two finest runs. Statistic everywhere: max over the 1 s samples of the vector 2-norm.
-No floor or extra tolerance is applied.
+differences between each tool's two finest runs. Every statistic is the maximum over the 1 s samples of the vector
+2-norm. No floor or extra tolerance is applied.
 
 ## Files
 
@@ -19,7 +19,7 @@ No floor or extra tolerance is applied.
 | `sagora_driver.jl` | SpaceAGORA side, one run per dt in `sagora_dt_s` |
 | `bsk_driver.py`, `run_bsk.sh` | Basilisk side, one run per step in `bsk_dt_s` |
 | `compare.py` | reads both ladders, writes `results/summary_<case>_T<s>.{csv,md}` |
-| `run_case.sh` | Basilisk on sf3, SpaceAGORA locally, compare |
+| `run_case.sh` | the lab's wrapper: Basilisk on a remote lab machine, SpaceAGORA locally, then compare |
 
 ## Matching
 
@@ -42,8 +42,8 @@ No floor or extra tolerance is applied.
 
 ## Integrator finding: `integrator=:rk4` is not RK4
 
-The initial runner accepted `integrator=:rk4`, but it advances with `mj_step1`/`mj_step2`, and MuJoCo's `mj_step2` does not
-support RK4 (it falls back to Euler). Stage 1 now refuses `:rk4`. Before that fix, a Case A run with `:rk4` was bit-identical to one with `:euler` (checked with
+The runner first accepted `integrator=:rk4`, but it advances with `mj_step1`/`mj_step2`, and MuJoCo's `mj_step2` does not
+support RK4 (it falls back to Euler). The scene constructor now refuses `:rk4`. Before that fix, a Case A run with `:rk4` was bit-identical to one with `:euler` (checked with
 `cmp` on the CSV outputs, dt = 0.02 s, 30 s). So no higher-order SpaceAGORA integrator is available without changing the
 package. `implicitfast` gave the same Case B summary as `:euler` to the digits shown (these models have no damping or armature, so the implicit velocity derivative has nothing to act on), so
 neither is an independent check. Instead `compare.py` adds second-order Richardson extrapolation over the three finest
@@ -77,38 +77,33 @@ python3 compare.py cases/caseA.toml results/local-sagora/caseA_T30 \
   results/local-bsk/caseA_T30 results/summary_caseA_T30
 ```
 
-These are scientific workloads: choose an idle host and appropriate resource
-limits. The separate `run_case.sh` wrapper preserves the original lab-specific
-`sf3` SSH alias, remote directories, lock and systemd limits. Its historical host
-setup follows; it is not needed for installation or the synthetic CI checks.
+These are scientific workloads: run them on an otherwise idle machine with
+suitable resource limits. None of this is needed for installation or for the
+synthetic CI checks.
 
+Basilisk needs a build with MuJoCo enabled; a standard build has
+`BUILD_MUJOCO=OFF`. The comparisons used a separate copy of the Basilisk 2.12
+source (commit 611665f, clean tree) with its own Conan cache. The build needs
+network access: it downloads MuJoCo 3.11.0, cspice and cfitsio, and takes SWIG
+from Basilisk's virtual environment, whose `bin` must be on `PATH`. From that
+source copy:
 
-Basilisk needs a MuJoCo-enabled build. The main Basilisk install on sf3 (`~/Documents/basilisk_2_12/dist3`) was built
-with `BUILD_MUJOCO=OFF` and is untouched. A separate copy of the same source (commit 611665f, clean tree) was built
-in `~/xval_mujoco/bsk_mj` (copy made with `rsync -a --exclude=dist3 --exclude=.venv`), keeping its own Conan cache in
-`~/xval_mujoco/conan_home` (needs network; it downloads MuJoCo 3.11.0, cspice, cfitsio; SWIG comes from the `.venv`,
-so the venv `bin` must be on PATH). Build commands, about 8 minutes at 10 parallel jobs:
-
-    cd ~/xval_mujoco/bsk_mj
-    PATH=<basilisk>/.venv/bin:$PATH CONAN_HOME=~/xval_mujoco/conan_home CMAKE_BUILD_PARALLEL_LEVEL=10 \
+    PATH=/path/to/basilisk/.venv/bin:$PATH CONAN_HOME=/path/to/conan_home \
       python conanfile.py --mujoco True --vizInterface False --opNav False --buildTesting False
 
-On the local machine, create the SpaceAGORA environment from the companion repository root:
-`julia scripts/setup_env.jl /path/to/mjxval_env`.
-Then return to `benchmarks/basilisk_mujoco_xval/` for the commands below (sf3 must be idle;
-harness synced with `rsync -a --exclude results ./ sf3:xval_mujoco/harness/`):
+The commands above then run one case end to end. `run_case.sh <case> <duration_s>
+<julia-env>` is the lab's wrapper for the same three steps: it runs the Basilisk
+side on a remote lab machine over SSH, stops if that run fails or reports a
+warning or instability, copies the results back, then runs the SpaceAGORA side
+locally under a memory limit and the comparison. It depends on the lab's host
+names and directories, so outside the lab run the three steps directly. The
+SpaceAGORA side writes `results/<hostname>/<case>_T<s>/`, and the comparison
+writes `results/summary_<case>_T<s>.{csv,md}`; `results/` is ignored by git.
+Wall times from these runs are not performance results.
 
-    sh run_case.sh caseA 30  /path/to/mjxval_env
-    sh run_case.sh caseA 300 /path/to/mjxval_env
-    sh run_case.sh caseB 30  /path/to/mjxval_env
-    sh run_case.sh caseC 12  /path/to/mjxval_env
-
-Results land in `results/<hostname>/<case>_T<s>/` (gitignored). Wall times are not performance results.
-
-The wrapper prints the remote log after the command finishes and stops on a nonzero remote status before copying
-results or running the local side. The comparator requires finite, matching sample times within and across ladders
-(absolute tolerance 1e-9 s). From the companion repository root, run the bounded guard regressions
-without native or remote workloads:
+The comparator requires finite, matching sample times within and across ladders
+(absolute tolerance 1e-9 s). From the companion repository root, the guard tests
+run without any native or remote workload:
 
     python3 -m unittest discover -s benchmarks/basilisk_mujoco_xval -p test_harness.py
 
