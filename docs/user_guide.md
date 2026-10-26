@@ -1,29 +1,28 @@
 # Simulating orbital proximity scenes with MuJoCo
 
 SpaceAGORAMuJoCo combines orbital motion with MuJoCo's rigid-body, joint and
-contact dynamics. It is intended for scenes in which local geometry matters:
-two nearby spacecraft, a free-flying vehicle with articulated links, or bodies
-that may touch. SpaceAGORA supplies the gravitational field; MuJoCo evolves the
+contact dynamics. It is meant for scenes in which local geometry matters: two
+nearby spacecraft, a free-flying vehicle with articulated links, or bodies that
+may touch. SpaceAGORA supplies the gravitational field; MuJoCo evolves the
 mechanical scene. You can step a scene directly or let it carry selected
 spacecraft during a SpaceAGORA simulation.
 
-The companion is optional. Installing or importing SpaceAGORA alone does not
-load MuJoCo. The current native binding requires Julia 1.12 and Linux x86_64 and
-uses the pinned MuJoCo 3.11.0 artifact.
+The companion is optional: installing or loading SpaceAGORA alone does not load
+MuJoCo. The native binding needs Julia 1.12 and Linux x86_64 and uses the pinned
+MuJoCo 3.11.0 artifact.
 
 ## Choose the guide and source pair together
 
-This version of the guide uses `ExternalPropagationServices` contract 2.0.0,
-as the releases from v0.2.0 on do. The current checkout pins SpaceAGORA v0.7.0;
-the existing companion v0.5.0 tag pins SpaceAGORA v0.6.0. The v0.1.0
-release uses contract 1.0.0; if you install that release, use its
+This guide uses `ExternalPropagationServices` contract 2.0.0, like every release
+from v0.2.0 on. The current `main` pins SpaceAGORA v0.7.0, and the v0.5.0 release
+pins SpaceAGORA v0.6.0. The v0.1.0 release uses contract 1.0.0; if you install it,
+follow its
 [tagged user guide](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/blob/v0.1.0/docs/user_guide.md)
-and [release record](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/releases/tag/v0.1.0).
-Do not combine its environment with the current coupled example below.
+and [release page](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/releases/tag/v0.1.0),
+and do not mix its environment with the coupled example below.
 
-To follow the current guide, prepare an environment from the companion checkout
-that contains it. For a new checkout of the default branch (add
-`git checkout --detach v0.5.0` after `cd` to use the v0.5.0 release instead):
+To follow this guide, prepare an environment from the companion checkout that
+contains it. For a new clone of `main`:
 
 ```sh
 git clone https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl.git
@@ -33,25 +32,32 @@ julia --startup-file=no scripts/setup_env.jl /path/to/mujoco-env
 JULIA_LOAD_PATH='@:@stdlib' julia --startup-file=no --project=/path/to/mujoco-env
 ```
 
-Setup selects this checkout and the exact core revision in its `SpaceAGORASource.toml`.
-Choose an empty destination outside both source checkouts. The installer can
-reuse an environment only when its `.spaceagora-mujoco-environment.toml` record
-matches the same companion and core source pair. An older environment without
-that record needs a new destination; setup does not adopt unrelated files.
-Symlinked parents do not bypass the source-directory checks.
+Setup selects this checkout and the exact core revision in its
+`SpaceAGORASource.toml`. Choose an empty destination outside both source
+checkouts; a symlinked parent directory does not get around that check. The
+installer reuses an environment only when its `.spaceagora-mujoco-environment.toml`
+record names the same companion and core pair. An older environment without that
+record needs a new destination, because setup does not take over unrelated files.
 
-Keep the checkout, environment and managed `sources/` directory available: the
-manifest refers to those local paths. This is the current-checkout route, not a
-claim that every default-branch revision is a qualified release. Record both
-source revisions with a study. The [installation guide](../README.md#installation)
-explains dependency setup and the distinction from published companion releases.
+Keep the checkout, the environment and the managed `sources/` directory: the
+manifest refers to those local paths. A revision of `main` is not necessarily a
+release, so record both source revisions with a study. The
+[installation guide](../README.md#installation) explains dependency setup and how
+this route differs from a published release.
+
+To use the v0.5.0 release instead, add `git checkout --detach v0.5.0` after `cd`.
+That tag admits SpaceAGORA 0.5 and 0.6 only, installs SpaceAGORA v0.6.0 (recorded
+in its `Project.toml`), and its installer does not write the ownership record
+described above.
 
 If you already have a SpaceAGORA source checkout, its
-[Robotics package setup](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/main/packages/robotics/README.md)
-can install the recorded companion under `packages/robotics/SpaceAGORAMuJoCo.jl`
-into a separate environment. That route uses your core checkout; the standalone
-installer uses `SpaceAGORASource.toml` on the development branch; the immutable
-v0.5.0 tag records its historical SpaceAGORA v0.6.0 pin in `Project.toml`.
+[robotics package setup](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/v0.7.1/packages/robotics/README.md)
+installs the companion revision it records under
+`packages/robotics/SpaceAGORAMuJoCo.jl` into a separate environment, with your
+core checkout. For SpaceAGORA v0.7.1 that is commit `7b5a0031`, which has the same
+source code as `main` and an older installer. To use this checkout with SpaceAGORA
+v0.7.1 instead, run the installer above with
+`SPACEAGORA_CORE_REV=db33b871795c9777037e6b6538996b08faec9aff`.
 
 Start with the [complete standalone example](#a-complete-standalone-example),
 then [carry it inside SpaceAGORA](#carrying-the-scene-inside-spaceagora).
@@ -68,12 +74,11 @@ follows its own orbital trajectory. The local axes remain parallel to the
 inertial axes: this is a translating frame, not a rotating orbital or LVLH frame.
 
 Each body receives the difference between gravity at its own center of mass and
-gravity at the chief. MuJoCo's built-in uniform gravity is disabled. This retains
-the tidal acceleration across the scene while separating it from the large
+gravity at the chief, and MuJoCo's built-in uniform gravity is turned off. This
+keeps the tidal acceleration across the scene while separating it from the large
 common orbital acceleration. The public state accessors add the chief's motion
-back, so the positions and velocities you provide and retrieve are **absolute
-inertial states**. Do not subtract the chief before constructing a
-`SceneBodyState`.
+back, so the positions and velocities you give and get back are absolute inertial
+states. Do not subtract the chief before constructing a `SceneBodyState`.
 
 The conventions used by the public interface are:
 
@@ -90,9 +95,9 @@ The conventions used by the public interface are:
 
 An MJCF body origin may differ from its center of mass. Position and velocity
 accessors refer to the center of mass; the quaternion describes the body's
-axes. MJCF geometry is written in metres, and a box's `size` gives its
-**half-lengths**. Set the MJCF compiler's angle convention explicitly when using
-angle-valued model attributes.
+axes. MJCF geometry is in metres, and a box's `size` gives its half-lengths. Set
+the MJCF compiler's angle convention explicitly when you use attributes that are
+angles.
 
 SpaceAGORA spacecraft quaternions use scalar-last order, `(x, y, z, w)`, and
 describe the same rotation as `v_body = rot(q) * v_inertial`, with
@@ -104,11 +109,11 @@ for a SpaceAGORA Cartesian initial condition.
 
 ## A complete standalone example
 
-This example places two identical, non-contacting cubes 20 metres apart near a
-7000-kilometre geocentric radius. The chaser receives the circular-orbit speed at
-its initial radius; the target starts with the same velocity. These initial
-conditions do not prescribe a formation-keeping trajectory. Their relative
-motion is a result of the gravitational field.
+This example places two identical cubes, which cannot touch, 20 metres apart at
+a geocentric radius of about 7000 kilometres. The chaser gets the circular-orbit
+speed at its initial radius and the target starts with the same velocity. These
+initial conditions do not set up formation keeping: the relative motion that
+follows comes from the gravitational field.
 
 Save the following as `two_cubes.jl` and run it in the installed companion
 environment with `julia --project=/path/to/mujoco-env two_cubes.jl`.
@@ -175,11 +180,11 @@ nor a planetary rotation callback.
 
 ## Choosing gravity and numerical resolution
 
-`gravity_effectors` must be a nonempty tuple of position-only static gravity
-models supported by SpaceAGORA's gravity interface. J2 and spherical-harmonic
-models also require `planet_rotation(t)`, returning an
+`gravity_effectors` must be a nonempty tuple of static gravity models that depend
+only on position and that SpaceAGORA's gravity interface supports. J2 and
+spherical-harmonic models also need `planet_rotation(t)`, returning an
 `SMatrix{3,3,Float64}` that maps inertial vectors into planet-fixed axes. The
-callback receives **scene time**, not a calendar date. Define its epoch and time
+callback receives scene time, not a calendar date. Define its epoch and time
 scale consistently with the spacecraft initial state and the chosen ephemeris
 model. In a coupled run, use `t0=0.0` and make elapsed time zero correspond to the
 configuration's `initial_time`. Merely selecting the same planet does not align
@@ -249,8 +254,8 @@ coupled scene.
 ## Carrying the scene inside SpaceAGORA
 
 The coupling assigns a scene exclusive propagation ownership of selected
-spacecraft for a run. A pair such as `1 => "chaser"` refers to the **position in
-the configuration's spacecraft vector**, not the spacecraft's `id`. Every free
+spacecraft for a run. A pair such as `1 => "chaser"` refers to the position in
+the configuration's spacecraft vector, not to the spacecraft's `id`. Every free
 root in that scene must be paired once. A child link belongs to its MuJoCo
 assembly and is not assigned a separate spacecraft entry.
 
@@ -309,9 +314,9 @@ println("Saved rows: ", size(table, 1))
 println("Template time after the run: ", scene_time(template), " s")
 ```
 
-The template remains at its initial time. Each run prepares a separate native
-scene and resets it from the paired **core spacecraft initial conditions**;
-the template's `initial_states` do not override those conditions. Enable
+The template stays at its initial time. Each run prepares a separate native
+scene and resets it from the initial conditions of the paired core spacecraft;
+the template's `initial_states` do not override them. Enable
 `orientation_sim` when carrying initial attitude and body rate into the scene.
 With orientation simulation disabled, the core supplies identity attitude and
 zero angular velocity to the owner.
@@ -330,7 +335,7 @@ of ownership, the stated solver mode and configuration restrictions. Run setup
 still performs routing and native preparation checks. Users of this adapter do
 not need to implement the service hooks or access engine storage. Authors of
 other adapters should use the
-[versioned service contract](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/bec28fcc348b48c6e807d007f9a5009e253e8340/docs/src/reference/external_propagation_services.md).
+[versioned service contract](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/v0.7.1/docs/src/reference/external_propagation_services.md).
 
 ## Reading coupled output
 
@@ -348,8 +353,8 @@ every saved row to be an exact native state. Do not use row-for-row identity
 with a standalone run as a default expectation.
 
 The added fields `scene_pose_chaser_1` through `scene_pose_chaser_7` contain
-three absolute inertial COM coordinates followed by a **scalar-last** SpaceAGORA
-quaternion (`v_body = rot(q) * v_inertial`).
+three absolute inertial center-of-mass coordinates followed by a scalar-last
+SpaceAGORA quaternion (`v_body = rot(q) * v_inertial`).
 They read the current last completed native state when the saving callback
 executes, rather than the off-step spacecraft extrapolation. If the solver fills
 an earlier output row after a larger accepted step, the native pose can be later
@@ -413,8 +418,8 @@ the MJCF, and `copy` keeps it:
 Size it from a measurement. `scene_arena_use(scene)` returns the arena `size` and
 the `peak` use since the scene was built, copied or last reset, both in bytes.
 Run a representative worst case, with the most contacts the study expects, and
-leave a generous margin above the peak. **An arena too small for a step
-terminates the Julia process.** MuJoCo reports the overflow through its error
+leave a generous margin above the peak. An arena too small for a step terminates
+the Julia process. MuJoCo reports the overflow through its error
 handler, which exits the process, and this package does not replace that handler
 because it is shared by everything in the process. The default arena has the
 same limit, which a scene with very many contacts can reach. An arena too small
@@ -426,7 +431,9 @@ garbage collector releases that copy after the run; the coupling has no hook to
 close it when the run ends. In long or threaded Monte Carlo campaigns, a
 template with a measured `<size memory="..."/>` keeps those pending copies
 small. Closing the template does not affect runs that have already copied it.
-A closed template is refused at setup.
+A run with a closed template fails at setup: by default `run_simulation` copies
+the template first, which raises an `InvalidStateException`, and with
+`isolate_state=false` validation refuses it with an `ArgumentError`.
 
 ## Scope and practical limits
 
@@ -441,7 +448,7 @@ In particular, this adapter does not feed MuJoCo contact forces back into
 SpaceAGORA's compliant multibody model. Keeping that model while adding MuJoCo
 contacts needs a two-way coupling layer that synchronizes positions and
 velocities, transfers contact forces and moments, and validates stability and
-energy behavior. This work is **not implemented or validated**; the development
+energy behavior. This work is not implemented or validated; the development
 plan is tracked in [issue #4](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/issues/4).
 
 Use a fixed mission duration. Orbit-count termination, atmosphere-interface

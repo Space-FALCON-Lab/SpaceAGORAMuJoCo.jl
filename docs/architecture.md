@@ -2,43 +2,48 @@
 
 This note is for developers changing the scene runner or its SpaceAGORA adapter.
 Start with the [user guide](user_guide.md) for a complete example and the frame
-conventions. Here, the packaging and source map identify the owners, the runner
-section follows one native step, and the coupling section explains how a scene
-participates in a core simulation.
+conventions. Below, the packaging and file layout say who owns what, the runner
+section follows one native step, and the Stage 2 section explains how a scene
+takes part in a core simulation.
 
-The design follows the 2026-10-06 extension memo: a chief-centered frame and Encke
-gravity. Stage 0 selected the native library, Stage 1 built the standalone runner,
-and Stage 2 added coupled propagation. Their measurements are retained below as
+The design uses a frame centered on a moving chief point and Encke-style gravity
+(each body receives the difference from gravity at the chief). The work went in
+stages: Stage 0 chose the native library, Stage 1 built the standalone runner and
+Stage 2 added coupled propagation. Their measurements are kept below as
 historical evidence.
 
 ## Packaging
 
-The runner is the independent `SpaceAGORAMuJoCo.jl` companion repository, with its
-own `Project.toml`, lazy `Artifacts.toml`, source, tests and CI. The package UUID,
-MuJoCo binding and scientific models are preserved from the original in-tree
-package. Core remains independent of MuJoCo. Installation explicitly selects the
-tested core commit from `SpaceAGORASource.toml` on this branch (from
-`Project.toml` on the v0.5.0 tag); the `0.5, 0.6, 0.7` compatibility families
-alone do not assert support. See the [user guide](user_guide.md#choose-the-guide-and-source-pair-together)
+The runner lives in this separate `SpaceAGORAMuJoCo.jl` repository, with its own
+`Project.toml`, lazy `Artifacts.toml`, source, tests and CI. The package UUID, the
+MuJoCo binding and the scientific models are unchanged from the original package
+inside SpaceAGORA, and the core does not depend on MuJoCo. Installation selects the
+tested core commit from `SpaceAGORASource.toml` on `main` (from `Project.toml` on
+the v0.5.0 tag); the compatibility range `0.5, 0.6, 0.7` alone does not promise
+support. See the [user guide](user_guide.md#choose-the-guide-and-source-pair-together)
 for the current source pair and the [README](../README.md#compatibility) for core
 checkout overrides.
 
 The adapter follows the same versioned-service pattern as the optional HYPR
-adapter. `SpaceAGORA.ExternalPropagationServices` owns contract 2.0.0, domain
-types, hook identities and narrow runtime accessors. The companion implements
-its eight listed hooks and consumes only that facade and existing public core
-model/sample functions. It checks `require_version(v"2.0.0")` before hook
-registration and again in `__init__`. There is no global provider registry:
-owners are selected per configuration and runtimes belong to individual runs.
+adapter. `SpaceAGORA.ExternalPropagationServices` owns contract 2.0.0, its domain
+types, the hook functions and a few runtime accessors. The companion implements
+the eight hooks the contract lists and uses only that interface and existing
+public core model and sample functions. It calls `require_version(v"2.0.0")`
+before adding its hook methods and again in `__init__`. There is no global
+provider registry: owners are chosen per configuration, and runtimes belong to
+individual runs.
 
 ## Stage 0: library choice
 
-At the original Stage 0 review, `MuJoCo_jll` (General registry) had only 2.3.7+0 and 3.1.6+0 (2024-06-21), and its Yggdrasil recipe is pinned
-to 3.1.6, while upstream was at 3.15.0. The decision was a current version close to Basilisk's 3.11, so the
-package pins the official 3.11.0 Linux x86_64 release tarball as a lazy artifact. Pkg checks the download
-against the sha256 in `Artifacts.toml` (which equals the published `.sha256` and the GitHub asset digest) and
-the unpacked tree against its git tree hash. `eq_active` is `mjtBool*` in `mjData` (`mjdata.h:182`).
-Platforms other than Linux x86_64 raise an unsupported-platform error. License is Apache-2.0.
+When the library was chosen, `MuJoCo_jll` in the General registry had only
+2.3.7+0 and 3.1.6+0 (2024-06-21), and its Yggdrasil recipe was pinned to 3.1.6,
+while upstream MuJoCo was at 3.15.0. The choice was a current version close to the
+3.11 that Basilisk uses, so the package pins the official 3.11.0 Linux x86_64
+release tarball as a lazy artifact. Pkg checks the download against the sha256 in
+`Artifacts.toml` (which equals the published `.sha256` and the GitHub asset
+digest) and the unpacked tree against its git tree hash. `eq_active` is
+`mjtBool*` in `mjData` (`mjdata.h:182`). Other platforms than Linux x86_64 raise
+an unsupported-platform error. The license is Apache-2.0.
 
 ## Layout
 
@@ -56,9 +61,9 @@ Platforms other than Linux x86_64 raise an unsupported-platform error. License i
 Public names: `ProximityScene`, `SceneBodyState`, `SceneState`, `body_state_from_initial_condition`,
 `scene_reset!`, `scene_step!`, `scene_state`, `scene_set_state!`, `scene_time`, `scene_chief`,
 `scene_body_names`, `scene_body_state`, `scene_ctrl`, `scene_arena_use`, plus `close`/`isopen` on a scene. Every
-scene owns its `mjModel` copy and `mjData` and writes no global state; the step is deterministic and
-`scene_reset!(scene[, states])`, `scene_state`, `scene_set_state!` and `copy(scene)` are the hooks a vectorized
-(RL) runner builds on.
+scene owns its copy of `mjModel` and its `mjData` and writes no global state. The step is deterministic, and
+`scene_reset!(scene[, states])`, `scene_state`, `scene_set_state!` and `copy(scene)` are what a vectorized
+runner, for example for reinforcement learning, builds on.
 
 The integer step counter defines time as `t = t0 + n dt`. Each step first calls
 `mj_step1` to update the kinematics, then writes the per-body wrench
@@ -78,7 +83,7 @@ Core gravity and frame functions are reached through public names and the versio
 
 ## Measured agreement
 
-The following measurements are historical evidence from before repository extraction.
+These measurements were made before the package moved to its own repository.
 
 Two free boxes (20 kg and 35 kg, about 50 m apart, 51.6 degree orbit at r = 7000 km) against the same two
 bodies as ordinary spacecraft under `run_simulation` (dp8, reltol 1e-12), one orbit (5850 s). Maximum
@@ -89,8 +94,8 @@ are set from these numbers.
 
 ## Stage 2: scenes inside `run_simulation`
 
-Core knows nothing about MuJoCo. It has a generic hook for spacecraft that an external integrator owns for a
-whole run (the supported `ExternalPropagationServices` facade): `external_spacecraft`, `external_step`, `external_preflight`, `external_prepare`,
+The core knows nothing about MuJoCo. It has generic hooks for spacecraft that an external integrator owns for a
+whole run (the `ExternalPropagationServices` interface): `external_spacecraft`, `external_step`, `external_preflight`, `external_prepare`,
 `external_sync!`, `external_time`, `external_state`, `external_acceleration`. The owner is configured through
 `SimulationConfiguration.external_propagators` (default `()`; runs without it are bit-identical to before).
 Contract 2.0.0 puts the engine time before the owner-local position: `external_state(rt, t, slot)` and
@@ -119,16 +124,16 @@ Attitude convention. SpaceAGORA stores `q = (x, y, z, w)` with `v_body = rot(q) 
 transpose of the Hamilton rotation matrix `R(q)`, kinematics `qdot = 1/2 q (x) (omega_body, 0)`); MuJoCo's `xquat`
 is `(w, x, y, z)` with `v_world = R(q) * v_body`, the free joint's rate in the body frame and world axes parallel
 to ECI. The mapping is a reordering of components (`sa_to_mujoco_quaternion`, `mujoco_to_sa_quaternion`) and
-the rate needs no transformation. `scene_body_state` now returns the body-frame rate `omega` (and
-`omega_world`).
+the rate needs no transformation. `scene_body_state` returns the body-frame rate as `ω` and the same rate in
+world axes as `ω_world`.
 
 Refusals (clear `ArgumentError`s at setup): checkpointing and resume; `run_constellation_ensemble`; solver modes
 other than `:tsit5`, `:auto_stiff`, `:rodas5p`, `:dp8`; the flat RHS route; articulated joints, compliant
 attachments or a robot arm on an owned spacecraft; a control effector on an owned spacecraft (actuation is Stage 3;
 reading state for guidance or navigation is allowed); guidance, navigation or control rates that are not
-integer multiples of the scene `dt`; orbit-count termination and atmosphere-interface events (continuous events on
-every spacecraft). Impact detection is not applied to shadow entries. Process-pool campaigns are not supported
-(native state is not serializable).
+integer multiples of the scene `dt`; touchdown events on an owned spacecraft, orbit-count termination, and
+atmosphere-interface and entry events (continuous events on every spacecraft). Impact detection is not applied to
+shadow entries. Process-pool campaigns are not supported, because native state cannot be serialized.
 
 Known limits. The native scene retains its joints and contacts, and this adapter supplies gravity. Core thruster,
 wheel, joint-motor and environment loads are not transferred to the scene. Contact-force exchange with the core
@@ -138,10 +143,10 @@ see the whole state vector, so an ordinary spacecraft's
 results change at round-off level (about 1e-8 m) when other spacecraft, owned or not, share the run.
 Historical measurements, made before the `:rk4` refusal was added, found the same first-order attitude errors
 with `integrator=:rk4` and `:implicitfast` (2.11 rad and 2.22 rad at dt = 0.04 on an intermediate-axis tumbling
-case, 0.07 rad with implicitfast on a stable spin). The current constructor rejects `:rk4`: the
-`mj_step1`/`mj_step2` path falls back to Euler for RK4 models. Supported choices are `:implicitfast`,
-`:implicit` and `:euler`; none adds higher-order coupling to this split step. These numbers are historical,
-not new measurements from the repository extraction.
+case, 0.07 rad with implicitfast on a stable spin). The constructor now rejects `:rk4`, because the
+`mj_step1`/`mj_step2` path falls back to Euler for RK4 models. The supported choices are `:implicitfast`,
+`:implicit` and `:euler`; none of them raises the order of this split step. These numbers are historical and
+were not measured again in this repository.
 
 
 ### Updating shared support
