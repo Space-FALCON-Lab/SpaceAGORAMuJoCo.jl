@@ -1,5 +1,5 @@
 # Generated from SpaceAGORA.jl scripts/companion_support/installation.jl.
-# Source SHA-256: 9478d87aec379abba133857ebc87138a737b440227e5866aea76dab4cdc54325; regenerate with scripts/sync_companion_support.jl.
+# Source SHA-256: f937fee08c919c24898f1e41cfba6144ebd2ecc16c6312a2abce490307b9c1e0; regenerate with scripts/sync_companion_support.jl.
 # Canonical source. Generate companion copies with scripts/sync_companion_support.jl.
 # This module needs only standard libraries and works before core is installed.
 module CompanionInstaller
@@ -158,10 +158,21 @@ function setup(plan; marker_name::AbstractString, package_name::AbstractString, 
             Pkg.activate(plan.destination)
             # Explicit core installation is intentional: dependency [sources]
             # propagation is not assumed, including on Julia 1.12.
-            Pkg.develop(Pkg.PackageSpec(path=core_path))
-            Pkg.develop(Pkg.PackageSpec(path=plan.companion); preserve=Pkg.PRESERVE_ALL)
+            # A migrated project may still name removed historical source paths.
+            # Select both members before the first resolution; resolving one at a
+            # time could try to load the other member from its stale location.
+            project_path = joinpath(plan.destination, "Project.toml")
+            if isfile(project_path)
+                project = TOML.parsefile(project_path)
+                sources = get!(project, "sources", Dict{String,Any}())
+                sources["SpaceAGORA"] = Dict("path" => core_path)
+                sources[package_name] = Dict("path" => plan.companion)
+                open(io -> TOML.print(io, project; sorted=true), project_path, "w")
+            end
+            Pkg.develop([Pkg.PackageSpec(path=core_path), Pkg.PackageSpec(path=plan.companion)];
+                preserve=Pkg.PRESERVE_ALL)
             direct = [Pkg.PackageSpec(name=name, uuid=uuid) for (name, uuid) in sort!(collect(plan.dependencies))]
-            Pkg.add(direct; preserve=Pkg.PRESERVE_ALL)
+            isempty(direct) || Pkg.add(direct; preserve=Pkg.PRESERVE_ALL)
             Pkg.instantiate()
             precompile && Pkg.precompile(["SpaceAGORA", package_name]; strict=true)
         end
