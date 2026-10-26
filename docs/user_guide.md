@@ -34,6 +34,12 @@ JULIA_LOAD_PATH='@:@stdlib' julia --startup-file=no --project=/path/to/mujoco-en
 ```
 
 Setup selects this checkout and the exact core revision in its `SpaceAGORASource.toml`.
+Choose an empty destination outside both source checkouts. The installer can
+reuse an environment only when its `.spaceagora-mujoco-environment.toml` record
+matches the same companion and core source pair. An older environment without
+that record needs a new destination; setup does not adopt unrelated files.
+Symlinked parents do not bypass the source-directory checks.
+
 Keep the checkout, environment and managed `sources/` directory available: the
 manifest refers to those local paths. This is the current-checkout route, not a
 claim that every default-branch revision is a qualified release. Record both

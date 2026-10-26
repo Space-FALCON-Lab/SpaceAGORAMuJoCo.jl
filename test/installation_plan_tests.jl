@@ -49,3 +49,6 @@ using .CompanionInstallation
         @test !ispath(env)
     end
 end
+
+include("support/installation_contract.jl")
+CompanionInstallationContract.test_installation_contract(CompanionInstallation)
