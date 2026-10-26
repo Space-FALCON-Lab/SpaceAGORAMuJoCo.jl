@@ -49,6 +49,12 @@ Repeat setup reuses the managed core checkout only when its source, revision,
 package identity and clean state match. It refuses a modified or mismatched
 checkout without resetting it.
 
+The current installer also requires an environment ownership record,
+`.spaceagora-mujoco-environment.toml`, matching this companion and core source
+pair. Environments made by the earlier installer do not have that record:
+create a fresh empty environment outside both checkouts and preserve the old
+one. Setup refuses to adopt an unmanaged nonempty directory.
+
 Setup installs dependencies and precompiles Julia packages. The lazy MuJoCo
 3.11.0 artifact downloads when a native operation first needs it; its archive
 and unpacked tree are checked against `Artifacts.toml`.

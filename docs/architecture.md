@@ -18,7 +18,7 @@ own `Project.toml`, lazy `Artifacts.toml`, source, tests and CI. The package UUI
 MuJoCo binding and scientific models are preserved from the original in-tree
 package. Core remains independent of MuJoCo. Installation explicitly selects the
 tested core commit from `SpaceAGORASource.toml` on this branch (from
-`Project.toml` on the v0.5.0 tag); the `0.5, 0.6` compatibility families
+`Project.toml` on the v0.5.0 tag); the `0.5, 0.6, 0.7` compatibility families
 alone do not assert support. See the [user guide](user_guide.md#choose-the-guide-and-source-pair-together)
 for the current source pair and the [README](../README.md#compatibility) for core
 checkout overrides.
@@ -142,3 +142,13 @@ case, 0.07 rad with implicitfast on a stable spin). The current constructor reje
 `mj_step1`/`mj_step2` path falls back to Euler for RK4 models. Supported choices are `:implicitfast`,
 `:implicit` and `:euler`; none adds higher-order coupling to this split step. These numbers are historical,
 not new measurements from the repository extraction.
+
+
+### Updating shared support
+
+`SharedSupport.toml` pins the core source of this repository's generated support
+files. Their headers identify the canonical file and its SHA-256. Change the
+canonical owner in core and run `scripts/sync_companion_support.jl --write` there
+against this checkout, then update the support pin. The Shared companion support
+CI check compares the copies with that immutable source. This support pin is
+separate from the core revision used to run the companion's numerical tests.

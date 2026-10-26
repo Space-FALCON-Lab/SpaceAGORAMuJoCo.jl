@@ -1,3 +1,5 @@
+# Generated from SpaceAGORA.jl scripts/companion_support/core_access.jl.
+# Source SHA-256: b878c58f42241c9b604973d1845dd6544ce1787e85cb489602f2727c7210e922; regenerate with scripts/sync_companion_support.jl.
 # Checks how a companion's runtime code reaches SpaceAGORA. The same file serves
 # the service-boundary tests of SpaceAGORAEDG, HYPR and SpaceAGORAMuJoCo; each
 # states its own policy: the names it may take from a SpaceAGORA module
