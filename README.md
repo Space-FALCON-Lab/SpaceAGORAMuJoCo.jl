@@ -239,3 +239,8 @@ acknowledges the mjorbit project; no mjorbit source file is copied here.
 
 MuJoCo runs in the Julia process, so a native fault ends the process. In 3.11.0,
 `eq_active` in `mjData` has type `mjtBool` instead of `mjtByte`.
+
+## Contributors
+
+- [Giusy Falcone](https://github.com/gfalcon2)
+- [Evan Yu](https://github.com/EvanY14)
