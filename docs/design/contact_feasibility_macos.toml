@@ -1,0 +1,35 @@
+[contact_dim_1]
+force_projection_error_N = 0.0
+moment_residual_Nm = 0.0
+normal_inverse_mass_per_kg = 1.0646341463414635
+residual_N = 3.552713678800501e-14
+torque_projection_error_Nm = 0.0
+
+[contact_dim_3]
+force_projection_error_N = 0.0
+moment_residual_Nm = 0.0
+normal_inverse_mass_per_kg = 1.0646341463414635
+residual_N = 6.0708797955424616e-15
+torque_projection_error_Nm = 3.552713678800501e-15
+
+[provenance]
+artifact_tree = "bc122c81694ff4f9854d5c6168652408faf07262"
+dirty = false
+julia = "1.12.1"
+mujoco = 3011000
+platform = "arm64-apple-darwin25.0.0"
+revision = "9d4d11725534b9cd17b16b5a3ff4362591976733"
+utc = "2026-11-13T21:49:40.810"
+
+[scalar]
+effective_mass_kg = 0.9523809523809523
+expected_force_N = 57.14285714285713
+force_error_N = 2.984279490192421e-13
+native_force_N = 57.14285714285743
+residual_N = 3.552713678800501e-14
+
+[sweep]
+bus_masses_kg = [2.0, 20.0, 200.0]
+cases = 9
+maximum_scalar_force_error_N = 2.984279490192421e-13
+native_timesteps_s = [0.0009765625, 0.000244140625, 6.103515625e-5]
