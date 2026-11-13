@@ -1,0 +1,18 @@
+# Native MuJoCo 3.11.0 per platform. Official Google DeepMind release assets only.
+# Each table is named <os>_<arch> with Julia's names (linux/macos, x86_64/aarch64) and refers to the
+# Artifacts.toml entry of the same platform. A platform without a table is unsupported.
+mujoco_version = "3.11.0"
+
+[platforms.linux_x86_64]
+artifact = "mujoco_3_11_0_linux_x86_64"
+source = "artifact"            # Pkg downloads the tarball listed in Artifacts.toml on first native use
+library_glob = "libmujoco.so.*"
+library_dirs = ["lib", "mujoco-3.11.0/lib"]
+
+[platforms.macos_aarch64]
+artifact = "mujoco_3_11_0_macos_aarch64"
+source = "dmg"                 # built locally from the official disk image; scripts/setup_env.jl does it at setup
+url = "https://github.com/google-deepmind/mujoco/releases/download/3.11.0/mujoco-3.11.0-macos-universal2.dmg"
+sha256 = "54933aa1a22a212134eaa663e83f4e81d7d2f14d0a778d0ba4fa14f66633b4f1"
+copy = ["mujoco.framework", "LICENSE", "THIRD_PARTY_NOTICES"]
+library = "mujoco.framework/Versions/A/libmujoco.3.11.0.dylib"

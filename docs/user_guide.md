@@ -8,8 +8,10 @@ mechanical scene. You can step a scene directly or let it carry selected
 spacecraft during a SpaceAGORA simulation.
 
 The companion is optional: installing or loading SpaceAGORA alone does not load
-MuJoCo. The native binding needs Julia 1.12 and Linux x86_64 and uses the pinned
-MuJoCo 3.11.0 artifact.
+MuJoCo. The native binding needs Julia 1.12 and either Linux x86_64 or macOS on
+Apple Silicon, and uses the pinned MuJoCo 3.11.0 artifact. On macOS, setup builds
+that artifact from the official disk image; see
+[Running on macOS](../README.md#running-on-macos-apple-silicon).
 
 ## Choose the guide and source pair together
 

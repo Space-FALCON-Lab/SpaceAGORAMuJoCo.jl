@@ -1,4 +1,4 @@
-# MuJoCo 3.11.0, official Google DeepMind release (Apache-2.0), Linux x86_64 only.
+# MuJoCo 3.11.0, official Google DeepMind release (Apache-2.0): Linux x86_64 here, macOS arm64 at the end.
 # Source: https://github.com/google-deepmind/mujoco/releases/tag/3.11.0
 # sha256 matches both the published .sha256 file and the GitHub release asset digest.
 # The tarball has a top-level mujoco-3.11.0/ directory; the binding searches for libmujoco.
@@ -11,3 +11,15 @@ lazy = true
     [[mujoco_3_11_0_linux_x86_64.download]]
     sha256 = "681a9353b296a06682e9e757d6d21ab7a0a5a5bdb218a1c05cb9a38536817c79"
     url = "https://github.com/google-deepmind/mujoco/releases/download/3.11.0/mujoco-3.11.0-linux-x86_64.tar.gz"
+
+# macOS arm64: the official asset is a disk image, which Pkg cannot unpack, so this entry has no download.
+# The package builds the artifact from
+#   https://github.com/google-deepmind/mujoco/releases/download/3.11.0/mujoco-3.11.0-macos-universal2.dmg
+#   sha256 54933aa1a22a212134eaa663e83f4e81d7d2f14d0a778d0ba4fa14f66633b4f1 (equals the GitHub release asset digest)
+# by copying mujoco.framework, LICENSE and THIRD_PARTY_NOTICES out of the verified image (see NativeLibrary.toml),
+# and accepts the result only if its tree hash equals the value below.
+[mujoco_3_11_0_macos_aarch64]
+arch = "aarch64"
+os = "macos"
+git-tree-sha1 = "bc122c81694ff4f9854d5c6168652408faf07262"
+lazy = true

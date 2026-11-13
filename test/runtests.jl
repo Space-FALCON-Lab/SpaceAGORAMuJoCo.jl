@@ -1,5 +1,5 @@
 # Run with the SpaceAGORAMuJoCo project active (see the package README). Skips cleanly when the pinned
-# libmujoco cannot be loaded (unsupported platform or no network for the lazy artifact).
+# libmujoco cannot be loaded (unsupported platform, or no network for the Linux tarball or the macOS disk image).
 using Test
 using SpaceAGORAMuJoCo
 

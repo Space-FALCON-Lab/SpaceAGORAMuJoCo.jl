@@ -131,7 +131,8 @@ allocated_mb() = MALLINFO2 == C_NULL ? NaN : (mi = ccall(MALLINFO2, NTuple{10, C
     # between runs with nothing leaked, so it is reported only. Dropping any one of the binding's frees
     # (data, model, spec) leaves at least a model's worth of memory per scene allocated, several times
     # this bound.
-    rss_mb() = parse(Int, split(read("/proc/self/statm", String))[2]) * 4096 / 2^20
+    # RSS comes from /proc, which only Linux has; elsewhere it is reported as NaN. Nothing is checked against it.
+    rss_mb() = Sys.islinux() ? parse(Int, split(read("/proc/self/statm", String))[2]) * 4096 / 2^20 : NaN
     cycle() = for _ in 1:150
         sc = make_scene((SpaceAGORA.InverseSquaredGravityModel(),); dt=0.05)
         run_steps!(sc, 3)
@@ -146,7 +147,11 @@ allocated_mb() = MALLINFO2 == C_NULL ? NaN : (mi = ccall(MALLINFO2, NTuple{10, C
     growth = allocated_mb() - before.allocated
     @info "Growth over 1200 scene make/free cycles (MB)" allocated = growth rss = rss_mb() - before.rss
     if MALLINFO2 == C_NULL
-        @warn "glibc $(unsafe_string(ccall(:gnu_get_libc_version, Cstring, ()))) has no mallinfo2 (2.33 or later): allocated-memory bound not checked"
+        if Sys.islinux()
+            @warn "glibc $(unsafe_string(ccall(:gnu_get_libc_version, Cstring, ()))) has no mallinfo2 (2.33 or later): allocated-memory bound not checked"
+        else
+            @warn "$(Sys.KERNEL) has no glibc mallinfo2: allocated-memory bound not checked"
+        end
         @test_skip growth < 4
     else
         @test growth < 4

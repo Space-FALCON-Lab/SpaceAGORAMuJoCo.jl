@@ -1,12 +1,18 @@
 # Run in a fresh process with the installed environment. Without the MuJoCo
 # library, both packages still load, and a scene is refused with a clear error
-# before any native code loads. On Linux x86_64 this test hides the pinned artifact
-# behind an empty override in a temporary depot; on other platforms the package
-# has no library to load.
+# before any native code loads. On Linux x86_64 and macOS arm64 this test hides the
+# platform's pinned artifact behind an empty override in a temporary depot; on other
+# platforms the package has no library to load.
 using Test, TOML
 
-artifact = TOML.parsefile(joinpath(@__DIR__, "..", "Artifacts.toml"))["mujoco_3_11_0_linux_x86_64"]
-expected = Sys.islinux() && Sys.ARCH === :x86_64 ? "libmujoco.so.* not found" : "unsupported platform"
+entry, expected = if Sys.islinux() && Sys.ARCH === :x86_64
+    "mujoco_3_11_0_linux_x86_64", "libmujoco.so.* not found"
+elseif Sys.isapple() && Sys.ARCH === :aarch64
+    "mujoco_3_11_0_macos_aarch64", "libmujoco.3.11.0.dylib not found"
+else
+    "mujoco_3_11_0_linux_x86_64", "unsupported platform"
+end
+artifact = TOML.parsefile(joinpath(@__DIR__, "..", "Artifacts.toml"))[entry]
 
 const CHILD = """
 using SpaceAGORA, SpaceAGORAMuJoCo, StaticArrays, Libdl
