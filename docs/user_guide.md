@@ -452,6 +452,8 @@ contacts needs a two-way coupling layer that synchronizes positions and
 velocities, transfers contact forces and moments, and validates stability and
 energy behavior. This work is not implemented or validated; the development
 plan is tracked in [issue #4](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/issues/4).
+The [architecture and validation proposal](design/compliant_contact_coupling.md)
+defines the first bus–bumper configuration and the evidence required before support.
 
 Use a fixed mission duration. Orbit-count termination, atmosphere-interface
 events and continuous touchdown events on owned spacecraft are outside the
