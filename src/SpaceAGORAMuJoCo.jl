@@ -3,7 +3,8 @@ Optional MuJoCo proximity scenes for SpaceAGORA: rigid-body contact-capable mult
 fly in a chief-centered inertial frame while SpaceAGORA's own gravity models drive the chief orbit and the
 per-body differential gravity.
 
-Load with `using SpaceAGORAMuJoCo`. The native library is MuJoCo 3.11.0 from a lazy artifact (Linux x86_64);
+Load with `using SpaceAGORAMuJoCo`. The native library is MuJoCo 3.11.0 from a lazy artifact (Linux x86_64,
+or macOS arm64 where the artifact is built from the official disk image);
 see `README.md` for the dependency review. Stage 1 is the standalone scene runner: [`ProximityScene`](@ref),
 [`scene_reset!`](@ref), [`scene_step!`](@ref), [`scene_state`](@ref), [`scene_set_state!`](@ref), and `close(scene)`
 to free its native memory. Stage 2 runs a scene inside `run_simulation` through [`ProximitySceneDynamics`](@ref).

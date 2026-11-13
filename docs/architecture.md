@@ -42,14 +42,25 @@ while upstream MuJoCo was at 3.15.0. The choice was a current version close to t
 release tarball as a lazy artifact. Pkg checks the download against the sha256 in
 `Artifacts.toml` (which equals the published `.sha256` and the GitHub asset
 digest) and the unpacked tree against its git tree hash. `eq_active` is
-`mjtBool*` in `mjData` (`mjdata.h:182`). Other platforms than Linux x86_64 raise
-an unsupported-platform error. The license is Apache-2.0.
+`mjtBool*` in `mjData` (`mjdata.h:182`). The license is Apache-2.0.
+
+macOS arm64 uses the same release. Its official asset is a disk image, which Pkg
+cannot unpack, so its `Artifacts.toml` entry has a tree hash and no download.
+`NativeLibrary.toml` records the image's URL and sha256. The first native use,
+which `scripts/setup_env.jl` triggers at setup, downloads the image, checks the
+sha256, mounts it read-only, copies `mujoco.framework` and the license files into
+a new artifact, detaches the image, and keeps the artifact only if its tree hash
+equals the pinned one. The offsets, sizes and enum values the binding uses are
+identical on Linux x86_64 and macOS arm64, so `OFFSETS` is shared. Linux x86_64
+does not run any of this code. Other platforms raise an unsupported-platform error.
 
 ## Layout
 
 | File | Role |
 |---|---|
 | `src/binding.jl` | The only file that calls libmujoco: 21 C entry points resolved with `dlsym`, `MjModel`/`MjData` owners freed by `close` or, failing that, their finalizers (every call checks that the owner is still open), field access at byte offsets from the 3.11.0 headers (`offsetof`). `api()` refuses any `mj_version()` other than 3011000. |
+| `src/macos_artifact.jl` | Included by `binding.jl` only: the `NativeLibrary.toml` lookup and the macOS arm64 artifact built from the official disk image. |
+| `NativeLibrary.toml` | Per platform, the `Artifacts.toml` entry and where the library comes from. `test/native_library_tests.jl` checks that the two files agree. |
 | `src/proximity_scene.jl` | `ProximityScene`, state types and the runner. |
 | `src/engine_coupling.jl` | The external-propagation owner, per-run preparation and synchronization with SpaceAGORA. |
 | `test/binding_tests.jl` | Checks every offset against an `mj_*` readback or an MJCF-fixed value; `close` on the owners. |

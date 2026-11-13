@@ -2,7 +2,8 @@
 The only file in this package that talks to libmujoco.
 
 It loads MuJoCo 3.11.0 from the package's lazy artifact (official release tarball, checksum pinned in
-`Artifacts.toml`), resolves the C entry points it needs, and exposes raw-pointer field access at byte
+`Artifacts.toml`; on macOS arm64 an artifact built from the official disk image pinned in
+`NativeLibrary.toml`), resolves the C entry points it needs, and exposes raw-pointer field access at byte
 offsets taken from the 3.11.0 headers with `offsetof` (`mujoco/mjmodel.h`, `mjdata.h`, `mjoption.h`).
 Those offsets are valid for exactly that version; `load!` refuses any other `mj_version()`. Moving to
 another MuJoCo release means regenerating `OFFSETS` and nothing else.
@@ -16,10 +17,12 @@ module Binding
 using Libdl
 using Artifacts
 using LazyArtifacts
+import Downloads, Pkg, SHA, TOML   # macOS artifact build only; LazyArtifacts already loads Pkg
 
 const MUJOCO_VERSION = 3_011_000
 
-# offsetof() values from the 3.11.0 headers (x86_64, mjtNum = double, mjtBool = unsigned char).
+# offsetof() values from the 3.11.0 headers (mjtNum = double, mjtBool = unsigned char), verified identical
+# on Linux x86_64 and macOS arm64.
 const OFFSETS = (
     model = (nq = 0, nv = 8, nu = 16, na = 40, nbody = 48, njnt = 88, neq = 472,
         body_rootid = 1816, body_jntnum = 1840, body_jntadr = 1848, body_dofnum = 1856,
@@ -62,18 +65,28 @@ end
 const _API = Ref{Union{Nothing, Api}}(nothing)   # the loaded library, process-wide by nature
 const _API_LOCK = ReentrantLock()
 
+include("macos_artifact.jl")   # NativeLibrary.toml lookup and the macOS arm64 artifact built from the official dmg
+
 """Path of `libmujoco`; throws on platforms without a pinned official asset."""
 function library_path()
-    (Sys.islinux() && Sys.ARCH === :x86_64) || throw(ErrorException(
-        "SpaceAGORAMuJoCo: unsupported platform $(Sys.KERNEL)/$(Sys.ARCH). MuJoCo 3.11.0 is pinned for Linux x86_64 only."))
-    root = artifact"mujoco_3_11_0_linux_x86_64"
-    for dir in (joinpath(root, "lib"), joinpath(root, "mujoco-3.11.0", "lib"))
-        isdir(dir) || continue
-        for name in readdir(dir)
-            startswith(name, "libmujoco.so.") && return joinpath(dir, name)
+    if Sys.islinux() && Sys.ARCH === :x86_64
+        root = artifact"mujoco_3_11_0_linux_x86_64"
+        for dir in (joinpath(root, "lib"), joinpath(root, "mujoco-3.11.0", "lib"))
+            isdir(dir) || continue
+            for name in readdir(dir)
+                startswith(name, "libmujoco.so.") && return joinpath(dir, name)
+            end
         end
+        error("libmujoco.so.* not found under the artifact at $root")
+    elseif Sys.isapple() && Sys.ARCH === :aarch64
+        spec = native_platform()
+        root = _macos_artifact_root(spec)
+        lib = joinpath(root, split(spec["library"], '/')...)
+        isfile(lib) || error("$(basename(lib)) not found under the artifact at $root")
+        return lib
+    else
+        _unsupported_platform()
     end
-    error("libmujoco.so.* not found under the artifact at $root")
 end
 
 function _load()
@@ -94,6 +107,16 @@ function api()::Api
 end
 
 version() = Int(ccall(api().fn.mj_version, Cint, ()))
+
+"""
+Make sure this platform's native library is installed and loads, and return its `mj_version()`. Throws
+the unsupported-platform error where `NativeLibrary.toml` has no table. `scripts/setup_env.jl` calls
+this at setup on macOS, and on Linux with `--prefetch-native`; otherwise the first native call does the same.
+"""
+function ensure_native!()
+    native_platform()
+    return version()
+end
 
 # --- native memory owners ---------------------------------------------------------------------------
 
