@@ -163,7 +163,8 @@ end
             @test norm(moment) < 1e-12
             RESULTS["contact_dim_$dim"] = Dict("residual_N"=>a.residual,
                 "moment_residual_Nm"=>norm(moment),
-                "load_projection_error_N_Nm"=>norm(generalized-a.generalized),
+                "force_projection_error_N"=>norm((generalized-a.generalized)[[1,2,3,7,8,9]]),
+                "torque_projection_error_Nm"=>norm((generalized-a.generalized)[[4,5,6,10,11,12]]),
                 "normal_inverse_mass_per_kg"=>A[1,1])
             if dim==3
                 @test norm(a.f[2:3]) <= .4a.f[1]+1e-10
