@@ -64,6 +64,12 @@ jobs:
         run: julia --startup-file=no --project="$RUNNER_TEMP/mujoco-env" test/missing_native.jl
       - name: Mandatory native tests with four threads
         run: julia --startup-file=no --project="$RUNNER_TEMP/mujoco-env" -e '@assert Threads.nthreads() == 4; include("test/runtests.jl")'
+      - name: Record standalone contact feasibility measurements
+        run: julia --startup-file=no test/contact_feasibility_standalone.jl "$RUNNER_TEMP/contact-feasibility.toml"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contact-feasibility-linux-x86_64
+          path: ${{ runner.temp }}/contact-feasibility.toml
       - name: Verify tracked installation inputs were not changed
         run: git diff --exit-code
 
@@ -136,5 +142,11 @@ jobs:
         run: julia --startup-file=no --project="$RUNNER_TEMP/mujoco-env" test/missing_native.jl
       - name: Mandatory native tests with four threads
         run: julia --startup-file=no --project="$RUNNER_TEMP/mujoco-env" -e '@assert Threads.nthreads() == 4; include("test/runtests.jl")'
+      - name: Record standalone contact feasibility measurements
+        run: julia --startup-file=no test/contact_feasibility_standalone.jl "$RUNNER_TEMP/contact-feasibility.toml"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contact-feasibility-macos-arm64
+          path: ${{ runner.temp }}/contact-feasibility.toml
       - name: Verify tracked installation inputs were not changed
         run: git diff --exit-code
