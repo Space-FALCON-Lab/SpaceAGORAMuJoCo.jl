@@ -12,6 +12,11 @@ stages: Stage 0 chose the native library, Stage 1 built the standalone runner an
 Stage 2 added coupled propagation. Their measurements are kept below as
 historical evidence.
 
+For proposed contact feedback into the core's compliant multibody dynamics,
+see the [issue #4 architecture and validation plan](design/compliant_contact_coupling.md).
+That separate mode is not implemented; the ownership rules below describe the
+existing scene runner.
+
 ## Packaging
 
 The runner lives in this separate `SpaceAGORAMuJoCo.jl` repository, with its own
