@@ -41,6 +41,8 @@ for name in ("head_on", "sliding", "damped", "low_slip", "grazing"):
     axes[1, 1].loglog(series(data, "maximum_step_s"), series(data, "scaled_trajectory_error"), "o-", label=name.replace("_", " "), lw=1)
 axes[1, 1].axhline(1e-3, color="black", ls=":", label="Acceptance target")
 axes[1, 1].invert_xaxis()
+axes[1, 1].set_xticks([2**-p for p in (10, 11, 12)], labels=[r"$2^{-10}$", r"$2^{-11}$", r"$2^{-12}$"])
+axes[1, 1].xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
 axes[1, 1].set(xlabel="Core maximum step (s; finer →)", ylabel="Scaled trajectory error vs finest",
                title="Tight-tolerance floor; no assumed event order")
 axes[1, 1].legend(fontsize=8, ncol=2)

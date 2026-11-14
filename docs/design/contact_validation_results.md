@@ -84,9 +84,20 @@ sweep reaches an error floor; no monotone order of event convergence is claimed.
 
 These maxima describe completed finest-step runs, not the refused intermediate
 run below. Exact values and source provenance are in the machine-readable
-snapshot. Effective restitution uses first geometric approach/departure normal
+[short-run snapshot](contact_validation_macos.toml) and
+[test measurements](contact_validation_tests_macos.toml). Effective restitution uses first geometric approach/departure normal
 speeds and includes compliant-joint forces; it is not a configured material
 restitution coefficient.
+
+The [two-second snapshot](contact_validation_long_macos.toml) repeats the same
+five cases over the longer horizon. Completed finest-step runs retain energy-work
+residual below `6.52e-9 J`, linear momentum below `2.49e-15 kg m/s`, angular
+momentum below `3.39e-15 kg m²/s` and relative joint angle below 0.222 rad. The
+sliding-power failure and default-tolerance damped refusal persist. Low-slip
+net tangential work becomes negative over this longer interval; the positive
+short-interval result remains recorded rather than being discarded.
+
+![Measured contact power, work closure and refinement](contact_validation.png)
 
 ## Blockers retained in the evidence
 
