@@ -170,7 +170,7 @@ jobs:
       OPENBLAS_NUM_THREADS: "1"
       JULIA_PKG_PRECOMPILE_AUTO: "0"
       SPACEAGORA_MUJOCO_REQUIRED: "1"
-      SPACEAGORA_CORE_REV: ea3324023a0944055f4350ad0d8a4ebcc4c6c174
+      SPACEAGORA_CORE_REV: 9ee7817763fc5a8d4d5438ca2235393e618e8d7d
     steps:
       - uses: actions/checkout@v7
         with:
@@ -189,7 +189,14 @@ jobs:
         run: julia --startup-file=no --project="$RUNNER_TEMP/contact-env" test/load_order.jl companion-first
       - name: Mandatory contact interface and native integration tests
         run: |
-          julia --startup-file=no --project="$RUNNER_TEMP/contact-env" -e 'using SpaceAGORA; @assert isdefined(SpaceAGORA,:ContactLoadServices); @assert Threads.nthreads()==4; include("test/runtests.jl")'
+          CONTACT_VALIDATION_TEST_REPORT="$RUNNER_TEMP/contact-validation/tests.toml" julia --startup-file=no --project="$RUNNER_TEMP/contact-env" -e 'using SpaceAGORA; @assert isdefined(SpaceAGORA,:ContactLoadServices); @assert Threads.nthreads()==4; include("test/runtests.jl")'
+      - name: Record trajectory ledgers and explicit physical qualification failures
+        run: julia --startup-file=no --project="$RUNNER_TEMP/contact-env" examples/validate_contact.jl "$RUNNER_TEMP/contact-validation"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contact-validation-${{ matrix.os }}
+          path: ${{ runner.temp }}/contact-validation
       - name: Record the two-second engine refinement example
         run: julia --startup-file=no --project="$RUNNER_TEMP/contact-env" examples/compliant_contact.jl "$RUNNER_TEMP/contact-engine.toml"
       - uses: actions/upload-artifact@v4

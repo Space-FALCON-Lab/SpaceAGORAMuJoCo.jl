@@ -23,6 +23,7 @@ if _mujoco_ok
         include("contact_core_parity_tests.jl")
         if isdefined(SpaceAGORAMuJoCo.SpaceAGORA, :ContactLoadServices)
             include("compliant_contact_tests.jl")
+            include("contact_validation_tests.jl")
         else
             @test_throws ArgumentError BusBumperContact()
         end

@@ -11,7 +11,7 @@ Existing proximity scenes continue to work there; constructing `BusBumperContact
 throws an actionable error. To reproduce the experimental pairing used by CI:
 
 ```sh
-SPACEAGORA_CORE_REV=ea3324023a0944055f4350ad0d8a4ebcc4c6c174 \
+SPACEAGORA_CORE_REV=9ee7817763fc5a8d4d5438ca2235393e618e8d7d \
   julia --startup-file=no scripts/setup_env.jl /tmp/contact-env
 julia --startup-file=no --project=/tmp/contact-env test/runtests.jl
 julia --startup-file=no --project=/tmp/contact-env examples/compliant_contact.jl /tmp/contact-engine.toml
@@ -57,11 +57,12 @@ against native constraints in the feasibility tests. CI uploads one report per
 platform. Tight adaptive tolerances can put all four caps near the same error
 floor; do not infer an event convergence order from a cap sweep alone.
 
-This continues [Issue #4](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/issues/4)
-and does not close it. Remaining work includes forced solver-rejection replay,
-full rotated-trajectory comparisons, grazing/stick–slip transition ledgers,
-independent tolerance/native-regularization sweeps and complete machine-readable
-trajectory/energy ledgers for the off-center cases. The
+The [expanded validation report](design/contact_validation_results.md) adds
+forced-rejection replay, rotated trajectories, grazing and low-slip ledgers,
+independent core/native parameter sweeps and full machine-readable trajectories.
+It records two friction qualification counterexamples and a default-tolerance
+native refusal with a stricter-solve recovery. Issue #4 remains open; these
+results do not qualify a general stick/slip model. The
 [architecture and validation plan](design/compliant_contact_coupling.md) remains
 the acceptance matrix for broader support.
 
