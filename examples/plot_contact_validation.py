@@ -37,13 +37,15 @@ axes[1, 0].set(xlabel="Time (s)", ylabel="Energy-work residual / 1.3125 J", titl
 axes[1, 0].legend(fontsize=8, ncol=2)
 convergence = rows("convergence.csv")
 for name in ("head_on", "sliding", "damped", "low_slip", "grazing"):
-    data = [r for r in convergence if r["case"] == name and float(r["scaled_trajectory_error"]) > 0]
+    data = [r for r in convergence if r["case"] == name and float(r["scaled_trajectory_error"]) != 0]
     axes[1, 1].loglog(series(data, "maximum_step_s"), series(data, "scaled_trajectory_error"), "o-", label=name.replace("_", " "), lw=1)
 axes[1, 1].axhline(1e-3, color="black", ls=":", label="Acceptance target")
 axes[1, 1].invert_xaxis()
 axes[1, 1].set(xlabel="Core maximum step (s; finer →)", ylabel="Scaled trajectory error vs finest",
                title="Tight-tolerance floor; no assumed event order")
 axes[1, 1].legend(fontsize=8, ncol=2)
+if any(r["status"] == "failed" for r in convergence):
+    axes[1, 1].text(.03, .03, "Gaps mark refused native solves", transform=axes[1, 1].transAxes, fontsize=8)
 for ax in axes.flat:
     ax.grid(alpha=.2)
 fig.suptitle("Issue #4: measured validation, with friction qualification blocked", fontsize=13)

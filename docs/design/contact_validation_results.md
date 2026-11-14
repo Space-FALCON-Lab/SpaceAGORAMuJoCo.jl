@@ -62,12 +62,12 @@ remains a separate longer-run regression.
 
 ## Measurements on macOS arm64, Julia 1.12.1, MuJoCo 3.11.0
 
-The original 157 coupling assertions still pass. The expanded suite adds 86
+The original 157 coupling assertions still pass. The expanded suite adds 89
 passing assertions and two recorded qualification failures. A near-touch
 fixture forces 63 rejected steps; replay is bit-identical and its accepted
 trajectory differs from the refined reference by `2.33e-8` in fixed scaled units.
 A global rotation of 0.8 rad gives a maximum scaled trajectory difference of
-`2.98e-8`, including bus displacement, relative position, velocities, orientations
+`1.66e-8`, including bus displacement, relative position, velocities, orientations
 and body angular rates.
 
 Core tolerances `1e-6`, `1e-8`, `1e-10`, `1e-12` at a fixed `2^-10` s cap give

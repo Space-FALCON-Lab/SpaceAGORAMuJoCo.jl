@@ -116,11 +116,10 @@ function write_contact_validation_report(directory; duration=.25)
     end
     report["damped_solver_recovery"]=recoveries
     open(joinpath(directory,"convergence.csv"),"w") do io
-        println(io,"case,maximum_step_s,scaled_trajectory_error,scaled_impulse_error")
+        println(io,"case,maximum_step_s,scaled_trajectory_error,scaled_impulse_error,status")
         for name in sort!(collect(keys(report["cases"])))
             for entry in report["cases"][name]["refinements"]
-                entry["status"]=="completed" || continue
-                println(io,join((name,entry["core_maximum_step_s"],entry["scaled_trajectory_error"],entry["scaled_impulse_error"]),','))
+                println(io,join((name,entry["core_maximum_step_s"],get(entry,"scaled_trajectory_error",NaN),get(entry,"scaled_impulse_error",NaN),entry["status"]),','))
             end
         end
     end

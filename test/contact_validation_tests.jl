@@ -13,6 +13,13 @@ end
 include("../examples/contact_validation_report.jl")
 trajectory_difference(args...;kwargs...)=contact_trajectory_difference(args...;kwargs...)
 
+@testset "stable orientation error near zero" begin
+    q=SVector(0.,0.,0.,1.)
+    @test contact_angle(q,-q)==0.
+    @test contact_angle(q,SVector(sin(5e-10),0.,0.,cos(5e-10)))≈1e-9 rtol=1e-12
+    @test contact_angle(q,SVector(sin(pi/4),0.,0.,cos(pi/4)))≈pi/2
+end
+
 @testset "forced contact rejection and accepted-trajectory replay" begin
     a=run_case(duration=.25,gap=1e-5,h=2.0^-10)
     b=run_case(duration=.25,gap=1e-5,h=2.0^-10)

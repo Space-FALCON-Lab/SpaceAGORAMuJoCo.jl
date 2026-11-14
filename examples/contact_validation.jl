@@ -13,7 +13,12 @@ function contact_quaternion_product(a,b)
     v=a[4]*bv+b[4]*av+cross(av,bv)
     return SVector(v[1],v[2],v[3],a[4]*b[4]-dot(av,bv))
 end
-contact_angle(a,b) = 2acos(clamp(abs(dot(normalize(a),normalize(b))),0.,1.))
+function contact_angle(a,b)
+    qa,qb=normalize(a),normalize(b)
+    dot(qa,qb)<0 && (qb=-qb)
+    # Avoid the acos(dot) roundoff floor for identical/nearly identical poses.
+    return 4atan(norm(qa-qb),norm(qa+qb))
+end
 
 function contact_analysis_model(args)
     sc=only(args.dynamics_model.spacecraft); attachment=only(sc.attachments)
