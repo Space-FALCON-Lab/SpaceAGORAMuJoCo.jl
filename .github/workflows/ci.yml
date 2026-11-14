@@ -166,7 +166,7 @@ jobs:
       OPENBLAS_NUM_THREADS: "1"
       JULIA_PKG_PRECOMPILE_AUTO: "0"
       SPACEAGORA_MUJOCO_REQUIRED: "1"
-      SPACEAGORA_CORE_REV: 47bbfe17856a30e092a63aa4449a533011f0d2b6
+      SPACEAGORA_CORE_REV: ea3324023a0944055f4350ad0d8a4ebcc4c6c174
     steps:
       - uses: actions/checkout@v7
         with:
