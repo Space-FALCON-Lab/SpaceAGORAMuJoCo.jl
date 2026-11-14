@@ -15,6 +15,8 @@ CONTACT_VALIDATION_TEST_REPORT=/tmp/contact-validation/tests.toml \
   julia --startup-file=no --project=/tmp/contact-env test/runtests.jl
 julia --startup-file=no --project=/tmp/contact-env \
   examples/validate_contact.jl /tmp/contact-validation
+CONTACT_VALIDATION_DURATION_S=2.0 julia --startup-file=no --project=/tmp/contact-env \
+  examples/validate_contact.jl /tmp/contact-validation/long
 python3 examples/plot_contact_validation.py /tmp/contact-validation
 ```
 
@@ -33,7 +35,7 @@ qualification fails. Add `--require-qualified` for a strict gate: it currently
 returns exit code 1. Native failures are recorded with the exact case and step
 cap; they do not become successful trajectories. Unexpected analysis errors
 still abort the command. Linux/macOS paired-core CI uploads the full report
-folder. CI's two `@test_broken` assertions preserve the observed friction
+folder, including the full two-second matrix in `long/`. CI's two `@test_broken` assertions preserve the observed friction
 counterexamples; an unexpected pass requires revisiting the evidence.
 
 ## Methods and bounded scope
