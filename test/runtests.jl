@@ -21,6 +21,11 @@ if _mujoco_ok
         include("native_header_tests.jl")
         include("contact_feasibility_tests.jl")
         include("contact_core_parity_tests.jl")
+        if isdefined(SpaceAGORAMuJoCo.SpaceAGORA, :ContactLoadServices)
+            include("compliant_contact_tests.jl")
+        else
+            @test_throws ArgumentError BusBumperContact()
+        end
         include("scene_tests.jl")
         include("engine_tests.jl")
     end

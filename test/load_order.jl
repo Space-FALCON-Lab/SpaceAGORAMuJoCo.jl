@@ -48,3 +48,17 @@ end
 end
 
 include("service_boundary.jl")
+
+@testset "optional contact contract availability" begin
+    if isdefined(SpaceAGORA,:ContactLoadServices)
+        c=SpaceAGORA.ContactLoadServices
+        SpaceAGORA.Conformance.test_service_facade(c;version=v"0.1.0")
+        @test SpaceAGORAMuJoCo.BusBumperContact <: c.AbstractContactModel
+        for name in c.IMPLEMENTED_FUNCTIONS
+            @test any(m->m.module===SpaceAGORAMuJoCo,methods(getproperty(c,name)))
+        end
+    else
+        @test_throws ArgumentError SpaceAGORAMuJoCo.BusBumperContact()
+        @test !isdefined(SpaceAGORAMuJoCo,:CL)
+    end
+end

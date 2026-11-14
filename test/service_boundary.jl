@@ -15,17 +15,28 @@ using .CoreAccess
     # From SpaceAGORA the facade and public root names other than modules; from the
     # facade its two inventories and the version check every adapter makes.
     listed = Set{Symbol}((services.IMPLEMENTED_FUNCTIONS..., services.CONSUMED_SERVICES..., :CompatibilityError, :require_version))
+    contact = isdefined(SpaceAGORA, :ContactLoadServices) ? SpaceAGORA.ContactLoadServices : nothing
+    contact_listed = contact === nothing ? Set{Symbol}() : Set{Symbol}((contact.IMPLEMENTED_FUNCTIONS...,
+        contact.CONSUMED_SERVICES..., :CompatibilityError, :require_version))
     function allowed(m, name)
+        m === contact && return name in contact_listed
         m === services && return name in listed
         m === SpaceAGORA || return false
-        name === :ExternalPropagationServices && return true
+        name in (:ExternalPropagationServices, :ContactLoadServices) && return true
         return Base.ispublic(SpaceAGORA, name) && isdefined(SpaceAGORA, name) && !(getglobal(SpaceAGORA, name) isa Module)
     end
-    policy = CorePolicy(SpaceAGORA, allowed, (SpaceAGORA, services))
+    policy = CorePolicy(SpaceAGORA, allowed, contact === nothing ? (SpaceAGORA, services) : (SpaceAGORA, services, contact))
 
     @test isempty(runtime_violations(policy, SpaceAGORAMuJoCo))
     sources = [joinpath(directory, file) for (directory, _, files) in walkdir(joinpath(@__DIR__, "..", "src"))
                for file in files if endswith(file, ".jl")]
+    if contact === nothing
+        # These two files cannot load with the released core. The mandatory
+        # paired-core job checks all sources against the new facade.
+        @test !isdefined(SpaceAGORAMuJoCo, :CL)
+        @test_throws ArgumentError SpaceAGORAMuJoCo.BusBumperContact()
+        filter!(p -> basename(p) ∉ ("contact_contract.jl", "compliant_contact.jl"), sources)
+    end
     found, used, known = source_violations(policy, sources)
     @test isempty(found)
     # Every binding of a SpaceAGORA module is one the source check follows.

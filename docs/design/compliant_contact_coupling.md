@@ -1,5 +1,14 @@
 # Two-way compliant multibody–MuJoCo contact coupling
 
+Implementation status: the damping prerequisite and native feasibility slice are
+merged in core #604 and companion #29. The next experimental engine slice uses
+`ContactLoadServices v0.1.0`; see [its current scope, reproducible example and
+remaining qualification](../compliant_contact.md). The matrix below remains the
+broader acceptance plan. Its prospective damping restriction is superseded by
+the objective midpoint damping correction in #604; the first engine slice permits
+finite nonnegative isotropic coefficients.
+
+
 **Status: proposed architecture and validation plan, 2026-11-13.** This is the
 first design deliverable for [issue #4](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/issues/4),
 not an implemented API or a claim of numerical validation. The existing

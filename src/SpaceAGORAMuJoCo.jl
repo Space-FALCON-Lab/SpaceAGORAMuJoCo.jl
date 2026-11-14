@@ -17,17 +17,31 @@ isdefined(SpaceAGORA, :ExternalPropagationServices) || throw(ArgumentError(
 const EP = SpaceAGORA.ExternalPropagationServices
 const CORE_CONTRACT_VERSION = v"2.0.0"
 EP.require_version(CORE_CONTRACT_VERSION)
+if isdefined(SpaceAGORA, :ContactLoadServices)
+    include("contact_contract.jl")
+else
+    _contact_contract_check() = nothing
+end
 
 # Recheck when loading a precompiled companion against a different core checkout.
 function __init__()
     EP.require_version(CORE_CONTRACT_VERSION)
+    _contact_contract_check()
 end
 
 include("binding.jl")
 include("proximity_scene.jl")
 include("engine_coupling.jl")
+if isdefined(SpaceAGORA, :ContactLoadServices)
+    include("compliant_contact.jl")
+else
+    """Experimental bus–bumper coupling requires a core with ContactLoadServices v0.1.0."""
+    BusBumperContact(; kwargs...) = throw(ArgumentError(
+        "BusBumperContact requires SpaceAGORA.ContactLoadServices v0.1.0. The pinned released core does not yet provide this experimental interface."))
+end
 
 export ProximityScene, SceneBodyState, SceneState, body_state_from_initial_condition
+export BusBumperContact
 export sa_to_mujoco_quaternion, mujoco_to_sa_quaternion, ProximitySceneDynamics, ProximitySceneRuntime, scene_body_pose_save_field
 export scene_reset!, scene_step!, scene_state, scene_set_state!, scene_time, scene_chief, scene_body_names,
     scene_body_state, scene_ctrl, scene_arena_use

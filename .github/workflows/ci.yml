@@ -150,3 +150,46 @@ jobs:
           path: ${{ runner.temp }}/contact-feasibility.toml
       - name: Verify tracked installation inputs were not changed
         run: git diff --exit-code
+
+  experimental-contact-pair:
+    # The release-pin jobs above remain unchanged. This additional exact pair
+    # is required to exercise the opt-in interface absent from the release.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      JULIA_LOAD_PATH: "@:@stdlib"
+      JULIA_NUM_THREADS: "4"
+      OPENBLAS_NUM_THREADS: "1"
+      JULIA_PKG_PRECOMPILE_AUTO: "0"
+      SPACEAGORA_MUJOCO_REQUIRED: "1"
+      SPACEAGORA_CORE_REV: e5ccd9856ba0b5315aac3e5e7e9e1c790852d082
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.12.3'
+      - name: Install the exact experimental core and this companion
+        run: julia --startup-file=no scripts/setup_env.jl "$RUNNER_TEMP/contact-env"
+      - name: Refuse a mismatched contact contract before any adapter loads
+        run: julia --startup-file=no --project="$RUNNER_TEMP/contact-env" test/incompatible_contact_core.jl
+      - name: Core-first load and all service boundaries
+        run: julia --startup-file=no --project="$RUNNER_TEMP/contact-env" test/load_order.jl core-first
+      - name: Companion-first load and all service boundaries
+        run: julia --startup-file=no --project="$RUNNER_TEMP/contact-env" test/load_order.jl companion-first
+      - name: Mandatory contact interface and native integration tests
+        run: |
+          julia --startup-file=no --project="$RUNNER_TEMP/contact-env" -e 'using SpaceAGORA; @assert isdefined(SpaceAGORA,:ContactLoadServices); @assert Threads.nthreads()==4; include("test/runtests.jl")'
+      - name: Record the two-second engine refinement example
+        run: julia --startup-file=no --project="$RUNNER_TEMP/contact-env" examples/compliant_contact.jl "$RUNNER_TEMP/contact-engine.toml"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contact-engine-${{ matrix.os }}
+          path: ${{ runner.temp }}/contact-engine.toml
+      - name: Verify tracked installation inputs were not changed
+        run: git diff --exit-code
