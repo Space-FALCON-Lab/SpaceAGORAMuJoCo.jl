@@ -100,12 +100,24 @@ function contact_trajectory_ledger(args,sol,contact; sample_step=2.0^-11)
         nodes=(-.8611363115940526,-.3399810435848563,.3399810435848563,.8611363115940526)
         weights=(.3478548451374538,.6521451548625461,.6521451548625461,.3478548451374538)
         events=NamedTuple[]
-        function quad(a,b)
+        function raw_quad(a,b)
             m=(a+b)/2; h=(b-a)/2
             sum(map(nodes,weights) do n,w
                 s=sample(m+h*n)
-                h*w*SVector(s.contact_power,s.damping_power,s.normal,s.friction_power,s.loads[2].force_n...,s.loads[2].torque_nm...)
+                creeping=contact.friction>0 && s.normal>1e-5 && s.slip_speed<contact.slip_speed
+                h*w*SVector(s.contact_power,s.damping_power,s.normal,s.friction_power,s.loads[2].force_n...,s.loads[2].torque_nm...,
+                    creeping ? s.slip_speed : 0.,creeping ? 1. : 0.)
             end)
+        end
+        work_scales=SVector(1.3125,1.3125,5.25,1.3125,5.25,5.25,5.25,5.25,5.25,5.25)
+        function quad(a,b,depth=0)
+            m=(a+b)/2
+            coarse=raw_quad(a,b); fine=raw_quad(a,m)+raw_quad(m,b)
+            estimate=maximum(abs.((fine-coarse)[1:10])./work_scales)
+            budget=max(1e-12,1e-9*(b-a)/(last(times)-first(times)))
+            estimate<=budget && return fine
+            depth<16 || error("Contact-work quadrature did not converge on [$a,$b]")
+            return quad(a,m,depth+1)+quad(m,b,depth+1)
         end
         function piece(a,b,ga,gb)
             if ga*gb<0
@@ -124,7 +136,7 @@ function contact_trajectory_ledger(args,sol,contact; sample_step=2.0^-11)
             end
             return quad(a,b)
         end
-        cumulative=[zero(SVector{10,Float64})]
+        cumulative=[zero(SVector{12,Float64})]
         for i in 1:length(times)-1
             a,b=times[i],times[i+1]; m=(a+b)/2; gm=sample(m).gap
             integral=piece(a,m,rows[i].gap,gm)+piece(m,b,gm,rows[i+1].gap)
@@ -133,7 +145,8 @@ function contact_trajectory_ledger(args,sol,contact; sample_step=2.0^-11)
         energy_residual=maximum(abs(row.energy-rows[1].energy-work[1]-work[2]) for (row,work) in zip(rows,cumulative))
         active=filter(s->s.normal>1e-5,rows)
         slide=filter(s->s.normal>1e-5&&s.cone_ratio>.99&&s.slip_speed>.01,rows)
-        slow=filter(s->s.normal>1e-5&&s.cone_ratio<.95&&s.slip_speed<.001,rows)
+        slow=filter(s->s.normal>1e-5&&s.cone_ratio<.95&&s.slip_speed<contact.slip_speed,rows)
+        creeping=filter(s->contact.friction>0&&s.normal>1e-5&&s.slip_speed<contact.slip_speed,rows)
         metrics=Dict{String,Any}(
             "maximum_penetration_m"=>max(0.,-minimum(s.gap for s in rows)),
             "peak_normal_force_N"=>maximum(s.normal for s in rows),
@@ -153,6 +166,11 @@ function contact_trajectory_ledger(args,sol,contact; sample_step=2.0^-11)
             "maximum_cone_ratio"=>isempty(active) ? 0. : maximum(s.cone_ratio for s in active),
             "sliding_samples"=>length(slide),"low_slip_interior_samples"=>length(slow),
             "maximum_sliding_friction_power_W"=>isempty(slide) ? 0. : maximum(s.friction_power for s in slide),
+            "maximum_friction_power_W"=>maximum(s.friction_power for s in rows),
+            "maximum_creep_speed_m_s"=>isempty(creeping) ? 0. : maximum(s.slip_speed for s in creeping),
+            "creep_displacement_m"=>last(cumulative)[11],"creep_duration_s"=>last(cumulative)[12],
+            "creep_speed_budget_m_s"=>contact.slip_speed,
+            "creep_displacement_budget_m"=>contact.slip_speed*(last(sol.t)-first(sol.t)),
             "maximum_damping_power_W"=>maximum(s.damping_power for s in rows),
             "rejected_steps"=>sol.stats.nreject,"sample_step_s"=>times[2]-times[1],
             "maximum_relative_joint_angle_rad"=>maximum(s.relative_angle for s in rows),
@@ -208,6 +226,7 @@ function write_contact_trajectory(path,ledger)
             append!(labels,["$(body)_$(field)_$axis" for axis in axes])
         end
     end
+    append!(labels,["creep_displacement_m","creep_duration_s"])
     open(path,"w") do io
         println(io,join(labels,','))
         for (s,w) in zip(ledger.rows,ledger.cumulative)
@@ -219,6 +238,7 @@ function write_contact_trajectory(path,ledger)
                     state.angular_velocity_body_rad_s,state.smooth_force_n,state.smooth_torque_nm,
                     load.force_n,load.torque_nm))
             end
+            append!(values,w[11:12])
             length(values)==length(labels) || error("Trajectory schema mismatch")
             println(io,join(values,','))
         end

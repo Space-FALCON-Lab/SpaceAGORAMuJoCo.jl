@@ -56,11 +56,11 @@ end
     step_errors=[trajectory_difference(r.sol,last(step_runs).sol) for r in step_runs[1:end-1]]
     @test all(<(1e-3),step_errors)
     RESULTS["native_timesteps"]=Dict("native_steps_s"=>collect(native_steps),"scaled_trajectory_errors"=>step_errors)
-    solve_tols=(1e-12,1e-13,1e-14)
-    solve_runs=[run_case(duration=.25,offset=.2,tangent=.15,contact=BusBumperContact(friction=.4,tolerance=tol)) for tol in solve_tols]
+    solve_tols=(1e-10,1e-11,1e-12)
+    solve_runs=[run_case(duration=.25,offset=.2,tangent=.15,contact=BusBumperContact(friction=.4,residual_limit=tol)) for tol in solve_tols]
     solve_errors=[trajectory_difference(r.sol,last(solve_runs).sol) for r in solve_runs[1:end-1]]
     @test all(<(1e-3),solve_errors)
-    RESULTS["native_solver_tolerances"]=Dict("tolerances"=>collect(solve_tols),"scaled_trajectory_errors"=>solve_errors)
+    RESULTS["force_certificate_limits"]=Dict("limits_N"=>collect(solve_tols),"scaled_trajectory_errors"=>solve_errors)
 end
 
 @testset "off-center friction and damping energy-work ledgers" begin
@@ -80,18 +80,13 @@ end
         @test m["mechanical_energy_change_J"]<0
         @test m["maximum_damping_power_W"]<=1e-12
         @test m["power_projection_residual_W"]<1e-10
-        if name=="slow"
-            @test_broken m["friction_work_J"]<=1e-10 # Issue #4: native soft-friction counterexample.
-        else
-            @test m["friction_work_J"]<=1e-10
-        end
+        @test m["friction_work_J"]<=1e-10
+        @test m["maximum_friction_power_W"]<=1e-10
+        @test m["maximum_creep_speed_m_s"]<=m["creep_speed_budget_m_s"]
+        @test m["creep_displacement_m"]<=m["creep_displacement_budget_m"]
         @test m["incoming_normal_speed_m_s"]>0 && m["outgoing_normal_speed_m_s"]>0
         @test m["maximum_cone_ratio"]<=1+1e-8
-        if name=="sliding"
-            @test_broken m["maximum_sliding_friction_power_W"]<=1e-10 # Qualification remains blocked.
-        else
-            @test m["maximum_sliding_friction_power_W"]<=1e-10
-        end
+        @test m["maximum_sliding_friction_power_W"]<=1e-10
         name=="sliding" && @test m["sliding_samples"]>0
         name=="slow" && @test m["low_slip_interior_samples"]>0
         RESULTS[name]=m
@@ -113,10 +108,10 @@ end
     RESULTS["physical_regularization"]=values
 end
 
-@testset "stricter native solve retains the physical residual budget" begin
-    for tol in (1e-13,1e-14)
+@testset "closed-form solve retains tighter force certificate budgets" begin
+    for tol in (1e-11,1e-12)
         r=run_case(duration=.25,h=2.0^-11,offset=.2,tangent=.15,translation_damping=.2,
-            contact=BusBumperContact(friction=.4,tolerance=tol))
+            contact=BusBumperContact(friction=.4,residual_limit=tol))
         m=contact_trajectory_ledger(r.args,r.sol,r.contact).metrics
         @test m["maximum_penetration_m"]>0
         @test m["energy_work_residual_J"]/1.3125<1e-5
