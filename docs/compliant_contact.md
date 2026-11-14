@@ -11,7 +11,7 @@ Existing proximity scenes continue to work there; constructing `BusBumperContact
 throws an actionable error. To reproduce the experimental pairing used by CI:
 
 ```sh
-SPACEAGORA_CORE_REV=e5ccd9856ba0b5315aac3e5e7e9e1c790852d082 \
+SPACEAGORA_CORE_REV=47bbfe17856a30e092a63aa4449a533011f0d2b6 \
   julia --startup-file=no scripts/setup_env.jl /tmp/contact-env
 julia --startup-file=no --project=/tmp/contact-env test/runtests.jl
 julia --startup-file=no --project=/tmp/contact-env examples/compliant_contact.jl /tmp/contact-engine.toml
