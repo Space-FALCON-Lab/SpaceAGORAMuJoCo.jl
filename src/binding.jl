@@ -27,12 +27,18 @@ const OFFSETS = (
     model = (nq = 0, nv = 8, nu = 16, na = 40, nbody = 48, njnt = 88, neq = 472,
         body_rootid = 1816, body_jntnum = 1840, body_jntadr = 1848, body_dofnum = 1856,
         jnt_type = 2104, jnt_qposadr = 2112, jnt_dofadr = 2120,
-        body_mass = 1944, body_inertia = 1960, opt = 792),
+        body_mass = 1944, body_inertia = 1960, ngeom = 136, geom_bodyid = 2448, opt = 792),
     opt = (timestep = 0, gravity = 56, integrator = 248),
     data = (narena = 0, maxuse_arena = 72,
         warning = 160264, time = 160640, qpos = 160680, qvel = 160688, act = 160696, ctrl = 160728,
-        xfrc_applied = 160744, eq_active = 160752, xquat = 160840, xipos = 160856, ximat = 160864),
+        xfrc_applied = 160744, eq_active = 160752, xquat = 160840, xipos = 160856, ximat = 160864,
+        ncon = 160560, nefc = 160576, contact = 161424,
+        qacc = 160776, qacc_smooth = 161376, qfrc_constraint = 161384,
+        efc_J = 161480, efc_R = 161536, efc_aref = 161824, efc_force = 161952,
+        efc_vel = 161816, efc_pos = 161488, efc_diagA = 161512),
+    contact = (dist = 0, pos = 8, frame = 32, dim = 528, geom = 540, efc_address = 576),
 )
+const SIZEOF_MJCONTACT = 584
 # mjWarningStat is {int lastinfo; int number}; mjtWarning enum values from mujoco/mjtype.h, mjNWARNING = 7.
 const WARNING_STRIDE = 8
 const WARNING_NUMBER = 4
@@ -55,7 +61,8 @@ const STATE_INTEGRATION = Cint(1 << 0 | 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4 | 1 <<
 
 const FUNCTIONS = (:mj_version, :mj_loadXML, :mj_parseXMLString, :mj_compile, :mjs_getError, :mj_deleteSpec,
     :mj_makeData, :mj_deleteData, :mj_deleteModel, :mj_copyModel, :mj_step1, :mj_step2, :mj_forward,
-    :mj_resetData, :mj_stateSize, :mj_getState, :mj_setState, :mj_name2id, :mj_id2name, :mj_objectVelocity, :mj_getTotalmass)
+    :mj_resetData, :mj_stateSize, :mj_getState, :mj_setState, :mj_name2id, :mj_id2name, :mj_objectVelocity, :mj_getTotalmass,
+    :mj_contactForce, :mj_isSparse)
 
 struct Api
     handle::Ptr{Cvoid}
@@ -204,6 +211,15 @@ function id2name(m::MjModel, objtype::Integer, id::Integer)
 end
 total_mass(m::MjModel) = ccall(api().fn.mj_getTotalmass, Float64, (Ptr{Cvoid},), _ptr(m))
 
+"""Copy the contact-frame force/torque for a one-based contact index into six entries."""
+function contact_force!(res::Vector{Float64}, m::MjModel, d::MjData, index::Integer)
+    length(res) == 6 || throw(DimensionMismatch("contact force buffer must have six entries"))
+    1 <= index <= ncon(d) || throw(BoundsError(1:ncon(d), index))
+    ccall(api().fn.mj_contactForce, Cvoid,
+        (Ptr{Cvoid}, Ptr{Cvoid}, Cint, Ptr{Float64}), _ptr(m), _ptr(d), index - 1, res)
+    return res
+end
+
 """6D velocity (angular; linear) of a body about its center of mass, in world axes. Needs fresh `cvel`."""
 function body_velocity!(res::Vector{Float64}, m::MjModel, d::MjData, body::Integer)
     ccall(api().fn.mj_objectVelocity, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}, Cint, Cint, Ptr{Float64}, Cint), _ptr(m), _ptr(d), OBJ_BODY, body, res, 0)
@@ -221,6 +237,8 @@ nv(m::MjModel) = _int(m, OFFSETS.model.nv)
 nu(m::MjModel) = _int(m, OFFSETS.model.nu)
 na(m::MjModel) = _int(m, OFFSETS.model.na)
 nbody(m::MjModel) = _int(m, OFFSETS.model.nbody)
+ngeom(m::MjModel) = _int(m, OFFSETS.model.ngeom)
+geom_bodyid(m::MjModel) = _arr(_ptr(m), OFFSETS.model.geom_bodyid, Cint, ngeom(m))
 njnt(m::MjModel) = _int(m, OFFSETS.model.njnt)
 neq(m::MjModel) = _int(m, OFFSETS.model.neq)
 
@@ -244,6 +262,40 @@ set_gravity!(m::MjModel, g) = for i in 1:3
 end
 
 data_time(d::MjData) = unsafe_load(Ptr{Float64}(_ptr(d) + OFFSETS.data.time))
+set_data_time!(d::MjData, t::Float64) = unsafe_store!(Ptr{Float64}(_ptr(d) + OFFSETS.data.time), t)
+ncon(d::MjData) = Int(unsafe_load(Ptr{Cint}(_ptr(d) + OFFSETS.data.ncon)))
+nefc(d::MjData) = Int(unsafe_load(Ptr{Cint}(_ptr(d) + OFFSETS.data.nefc)))
+qacc(m::MjModel, d::MjData) = _arr(_ptr(d), OFFSETS.data.qacc, Float64, nv(m))
+qacc_smooth(m::MjModel, d::MjData) = _arr(_ptr(d), OFFSETS.data.qacc_smooth, Float64, nv(m))
+qfrc_constraint(m::MjModel, d::MjData) = _arr(_ptr(d), OFFSETS.data.qfrc_constraint, Float64, nv(m))
+efc_R(d::MjData) = _arr(_ptr(d), OFFSETS.data.efc_R, Float64, nefc(d))
+efc_aref(d::MjData) = _arr(_ptr(d), OFFSETS.data.efc_aref, Float64, nefc(d))
+efc_force(d::MjData) = _arr(_ptr(d), OFFSETS.data.efc_force, Float64, nefc(d))
+efc_vel(d::MjData) = _arr(_ptr(d), OFFSETS.data.efc_vel, Float64, nefc(d))
+efc_pos(d::MjData) = _arr(_ptr(d), OFFSETS.data.efc_pos, Float64, nefc(d))
+efc_diagA(d::MjData) = _arr(_ptr(d), OFFSETS.data.efc_diagA, Float64, nefc(d))
+
+"""Dense constraint Jacobian view, with rows as constraints; refuse sparse models."""
+function constraint_jacobian(m::MjModel, d::MjData)
+    ccall(api().fn.mj_isSparse, Cint, (Ptr{Cvoid},), _ptr(m)) == 0 ||
+        throw(ArgumentError("constraint_jacobian requires a dense native Jacobian"))
+    return transpose(reshape(_arr(_ptr(d), OFFSETS.data.efc_J, Float64, nefc(d) * nv(m)), nv(m), nefc(d)))
+end
+
+"""Copy contact geometry. Geom IDs and efc address remain native zero-based values.
+
+Frame is row-major: the first three entries are the normal from geom 1 to geom 2.
+Copies remain valid across subsequent native queries; no arena pointer escapes.
+"""
+function contact(d::MjData, index::Integer)
+    1 <= index <= ncon(d) || throw(BoundsError(1:ncon(d), index))
+    base = unsafe_load(Ptr{Ptr{UInt8}}(_ptr(d) + OFFSETS.data.contact)) + (index-1)*SIZEOF_MJCONTACT
+    o = OFFSETS.contact
+    floats(off, n) = ntuple(i -> unsafe_load(Ptr{Float64}(base + off), i), n)
+    ints(off, n) = ntuple(i -> Int(unsafe_load(Ptr{Cint}(base + off), i)), n)
+    return (dist=only(floats(o.dist,1)), pos=floats(o.pos,3), frame=floats(o.frame,9),
+        dim=only(ints(o.dim,1)), geom=ints(o.geom,2), efc_address=only(ints(o.efc_address,1)))
+end
 qpos(m::MjModel, d::MjData) = _arr(_ptr(d), OFFSETS.data.qpos, Float64, nq(m))
 qvel(m::MjModel, d::MjData) = _arr(_ptr(d), OFFSETS.data.qvel, Float64, nv(m))
 ctrl(m::MjModel, d::MjData) = _arr(_ptr(d), OFFSETS.data.ctrl, Float64, nu(m))

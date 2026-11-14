@@ -18,6 +18,9 @@ if _mujoco_ok
     @testset "SpaceAGORAMuJoCo" begin
         include("common.jl")
         include("binding_tests.jl")
+        include("native_header_tests.jl")
+        include("contact_feasibility_tests.jl")
+        include("contact_core_parity_tests.jl")
         include("scene_tests.jl")
         include("engine_tests.jl")
     end

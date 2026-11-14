@@ -63,12 +63,14 @@ does not run any of this code. Other platforms raise an unsupported-platform err
 
 | File | Role |
 |---|---|
-| `src/binding.jl` | The only file that calls libmujoco: 21 C entry points resolved with `dlsym`, `MjModel`/`MjData` owners freed by `close` or, failing that, their finalizers (every call checks that the owner is still open), field access at byte offsets from the 3.11.0 headers (`offsetof`). `api()` refuses any `mj_version()` other than 3011000. |
+| `src/binding.jl` | The only file that calls libmujoco: C entry points resolved with `dlsym`, `MjModel`/`MjData` owners freed by `close` or, failing that, their finalizers (every call checks that the owner is still open), field access at byte offsets from the 3.11.0 headers (`offsetof`). `api()` refuses any `mj_version()` other than 3011000. |
 | `src/macos_artifact.jl` | Included by `binding.jl` only: the `NativeLibrary.toml` lookup and the macOS arm64 artifact built from the official disk image. |
 | `NativeLibrary.toml` | Per platform, the `Artifacts.toml` entry and where the library comes from. `test/native_library_tests.jl` checks that the two files agree. |
 | `src/proximity_scene.jl` | `ProximityScene`, state types and the runner. |
 | `src/engine_coupling.jl` | The external-propagation owner, per-run preparation and synchronization with SpaceAGORA. |
 | `test/binding_tests.jl` | Checks every offset against an `mj_*` readback or an MJCF-fixed value; `close` on the owners. |
+| `test/native_header_tests.jl` | Compiles the pinned artifact's headers to check every bound offset and struct size on the host platform; a C compiler is mandatory in native CI. |
+| `test/contact_feasibility_tests.jl` | Standalone contact-query feasibility checks. The bounded harness under `test/support/` is not a supported coupling adapter. |
 | `test/scene_tests.jl` | Free-body agreement with ordinary spacecraft, determinism, state round trip, validation, a_fb, leak loop, `close` and use after close, arena use. |
 | `test/engine_tests.jl` | Coupled state synchronization, ownership, attitude conventions and refused configurations. |
 

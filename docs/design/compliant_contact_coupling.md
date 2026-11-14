@@ -6,6 +6,10 @@ not an implemented API or a claim of numerical validation. The existing
 external-owner refusals remain in force. Completing the first configuration
 below does not establish support for arbitrary robot arms or close the whole issue.
 
+The first implementation work and measured native-query evidence are recorded
+in [initial contact feasibility results](contact_feasibility_results.md).
+The engine coupling and supported API described here remain proposed.
+
 ## Decision and first configuration
 
 Keep SpaceAGORA as the only integrator of every physical body. Use MuJoCo as an
