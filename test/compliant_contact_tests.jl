@@ -18,7 +18,7 @@ state(r;v=Z,q=Q,w=Z,f=Z,tau=Z)=C.ContactState(SVector{3,Float64}(r),v,q,w,f,tau)
 @testset "production provider purity, projection, separation and refusals" begin
     SpaceAGORA.Conformance.test_service_facade(C;version=v"0.1.0")
     for c in (BusBumperContact(friction=-1.),BusBumperContact(time_constant=1e-6),
-            BusBumperContact(impedance=1.),BusBumperContact(iterations=0))
+            BusBumperContact(impedance=1.),BusBumperContact(slip_speed=0.))
         @test_throws ArgumentError C.contact_preflight(c,BODIES)
     end
     for friction in (0.,.4)
