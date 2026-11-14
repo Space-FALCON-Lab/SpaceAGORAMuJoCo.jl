@@ -99,6 +99,42 @@ short-interval result remains recorded rather than being discarded.
 
 ![Measured contact power, work closure and refinement](contact_validation.png)
 
+## Linux/macOS agreement
+
+The paired jobs in [CI run 43626140870](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/actions/runs/43626140870)
+both completed the expanded tests and wrote their reports with Julia 1.12.3 and
+MuJoCo 3.11.0. The source is the clean PR merge revision `088bd829`, paired with
+core `9ee78177`; source-file hashes agree. All 15 engineering checks on PR #31's
+`4c2bac7` head passed. Physical qualification remains false on both platforms.
+
+The [cross-platform comparison](contact_validation_cross_platform.toml) checks
+all 513 saved times for each finest-step, 0.25-second trajectory. Position,
+velocity, quaternion angle and angular velocity use the design's fixed scales;
+linear and angular contact impulses are compared separately. The maximum scaled
+trajectory difference is `2.83e-7`, and maximum scaled linear impulse difference
+is `2.06e-9`, both below the unchanged `1e-3` budget. Contact-work histories differ
+by at most `1.61e-9 J`. This is numerical agreement on the bounded fixture, not
+physical friction qualification or a comparison of the separate two-second run.
+
+The Linux report contains the same two friction failures. The macOS report also
+retains the refused intermediate damped refinement; the completed finest runs
+agree. Tighter native solve tolerances recover that intermediate case without
+changing the residual limit, as described below.
+
+Download the `contact-validation-ubuntu-latest` (artifact 14127186426) and
+`contact-validation-macos-15` (artifact 14126947613) archives from that CI run,
+extract them into separate directories, then reproduce the comparison with:
+
+```sh
+julia --startup-file=no examples/compare_contact_platforms.jl \
+  /tmp/contact-linux /tmp/contact-macos /tmp/contact-comparison.toml
+```
+
+The comparison uses Julia standard libraries, refuses mismatched source/settings
+or sample grids, and records input hashes. Its exit status tests numerical
+agreement only; `physically_qualified = false` and both sets of qualification
+failures remain explicit in the result.
+
 ## Blockers retained in the evidence
 
 1. **Opposing sliding power fails.** Offset 0.2 m, initial tangential speed
@@ -124,7 +160,26 @@ observed counterexample, but does not establish physical validity or waive our
 target. Do not clip returned tangential forces: that would change the coupled
 solve and invalidate its optimality certificate.
 
-Issue #4 remains open for a justified friction-model/scope decision, an actual
-qualified stick/slip transition, and cross-platform confirmation of this expanded
-matrix. Gravity, actuation, external targets, multiple attachments, articulated
-chains and implicit solvers still need separate designs and validation.
+## Remaining friction qualification
+
+PR #30 is held until friction is qualified. Passing engineering CI or this
+cross-platform comparison does not release that hold. The next model work must:
+
+1. Establish a tangential force law with an explicit dissipation argument and
+   a justified sticking/sliding condition, including coupled normal/tangential
+   effective mass and the supplied smooth acceleration. Changing regularization
+   parameters is a physical-model change and needs its own justification.
+2. Retain the existing counterexamples as regression cases. Sweep both signs of
+   slip through zero, friction coefficient, mount offset and smooth joint loads;
+   verify cone bounds, opposing sliding power and the separate low-slip work
+   diagnostic. A cone-interior sample alone cannot establish sticking.
+3. Derive a convergence/optimality certificate for the actual chosen solve.
+   Clipping the returned force or adding an unverified native postprocessing
+   solver would invalidate the existing certificate and is not a repair.
+4. Repeat the independent core-step, core-tolerance, native-step, native-tolerance
+   and work-quadrature studies, including the two-second horizon, on Linux and
+   macOS. Preserve the force/moment and energy-work budgets and publish failures.
+
+Issue #4 remains open for that model work and an actual qualified stick/slip
+transition. Gravity, actuation, external targets, multiple attachments,
+articulated chains and implicit solvers still need separate designs and validation.
