@@ -29,8 +29,9 @@ serial Tsit5, no gravity or other effectors/devices, one isotropic joint, and
 both maximum step caps `2^-12` seconds. The native timestep stays fixed during
 core-step refinement. The provider uses Newton, dense constraints, an elliptic
 cone, disabled warm starts/sleep, exact diagonal contact inertia and an explicit
-pair. Normal-only and isotropic sliding friction are supported by this bounded
-experiment; this is not a general collision-geometry interface.
+pair. Normal-only and isotropic sliding friction are implemented in this bounded
+experiment; physical qualification of friction is still incomplete. This is not
+a general collision-geometry interface.
 
 The independent contact check uses the physical inverse mass matrix and a
 projected-gradient optimality residual in force units. Each query fails for
@@ -63,3 +64,24 @@ independent tolerance/native-regularization sweeps and complete machine-readable
 trajectory/energy ledgers for the off-center cases. The
 [architecture and validation plan](design/compliant_contact_coupling.md) remains
 the acceptance matrix for broader support.
+
+## Friction qualification blocker
+
+Additional Issue #4 trajectory validation found positive tangential power in
+an off-center sliding case (mount offset 0.2 m, initial tangential speed 0.4 m/s,
+friction coefficient 0.1). At 0.052734375 s, the measured tangential power was
+about +0.013129 W with nonzero slip and a force on the friction-cone boundary.
+Core step caps from `2^-10` to `2^-14` s with tolerance `1e-12` reproduced it;
+world-wrench power and native constraint power agreed within `3e-15 W`.
+A low-slip case (0.01 m/s, coefficient 0.8) also produced positive net tangential
+work. Total mechanical energy still decreased in both cases.
+
+These observations fail the planned opposing-slip-power qualification criterion.
+They are a limitation of the currently queried native soft-contact response,
+not evidence that the friction model is physically qualified. MuJoCo documents
+that its [convex soft-contact model](https://mujoco.readthedocs.io/en/3.11.0/computation/index.html#physical-realism-and-soft-contacts)
+need not have maximally dissipative friction; that does not waive our acceptance
+target. Keep friction experimental, retain this counterexample in the validation
+report, and leave Issue #4 open pending a justified model/scope decision. Do not
+clip returned forces, relax the power criterion, or mistake a closed energy-work
+ledger for proof of dissipative friction.
