@@ -62,7 +62,8 @@ const STATE_INTEGRATION = Cint(1 << 0 | 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4 | 1 <<
 const FUNCTIONS = (:mj_version, :mj_loadXML, :mj_parseXMLString, :mj_compile, :mjs_getError, :mj_deleteSpec,
     :mj_makeData, :mj_deleteData, :mj_deleteModel, :mj_copyModel, :mj_step1, :mj_step2, :mj_forward,
     :mj_resetData, :mj_stateSize, :mj_getState, :mj_setState, :mj_name2id, :mj_id2name, :mj_objectVelocity, :mj_getTotalmass,
-    :mj_contactForce, :mj_isSparse)
+    :mj_contactForce, :mj_isSparse,
+    :mj_fwdPosition, :mj_fwdVelocity, :mj_fwdActuation, :mj_fwdAcceleration)
 
 struct Api
     handle::Ptr{Cvoid}
@@ -197,6 +198,22 @@ copy_model(model::MjModel) = MjModel(ccall(api().fn.mj_copyModel, Ptr{Cvoid}, (P
 step1!(m::MjModel, d::MjData) = ccall(api().fn.mj_step1, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), _ptr(m), _ptr(d))
 step2!(m::MjModel, d::MjData) = ccall(api().fn.mj_step2, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), _ptr(m), _ptr(d))
 forward!(m::MjModel, d::MjData) = ccall(api().fn.mj_forward, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), _ptr(m), _ptr(d))
+"""
+Evaluate collision geometry, constraint references and smooth acceleration without
+solving contact or advancing time. Constraint forces are cleared and `qacc` is the
+smooth acceleration. Intended for the bounded, actuator-free contact provider;
+this does not invoke control/sensor callbacks or the native constraint solver.
+"""
+function contact_terms!(m::MjModel, d::MjData)
+    f=api().fn
+    for ptr in (f.mj_fwdPosition,f.mj_fwdVelocity,f.mj_fwdActuation,f.mj_fwdAcceleration)
+        ccall(ptr,Cvoid,(Ptr{Cvoid},Ptr{Cvoid}),_ptr(m),_ptr(d))
+    end
+    fill!(efc_force(d),0.)
+    fill!(qfrc_constraint(m,d),0.)
+    qacc(m,d) .= qacc_smooth(m,d)
+    return nothing
+end
 reset_data!(m::MjModel, d::MjData) = ccall(api().fn.mj_resetData, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), _ptr(m), _ptr(d))
 state_size(m::MjModel, sig::Integer=STATE_INTEGRATION) = Int(ccall(api().fn.mj_stateSize, Cint, (Ptr{Cvoid}, Cint), _ptr(m), sig))
 get_state!(buf::Vector{Float64}, m::MjModel, d::MjData, sig::Integer=STATE_INTEGRATION) =

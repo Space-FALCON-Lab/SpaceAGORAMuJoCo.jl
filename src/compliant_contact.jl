@@ -4,7 +4,7 @@ CL.require_version(v"0.1.0")
 """
     BusBumperContact(; bus_half_size=(0.5,0.4,0.3), bumper_radius=0.1, friction=0.0,
         timestep=2.0^-12, time_constant=0.01, damping_ratio=1.0, impedance=0.9,
-        iterations=100, tolerance=1e-12, residual_limit=1e-10)
+        slip_speed=0.001, residual_limit=1e-10)
 
 Experimental contact between a box centered on the rigid bus COM and a sphere
 centered on its sole compliant attachment body. Core supplies both physical
@@ -12,6 +12,9 @@ inertias and every trial state/smooth COM wrench. Native gravity and other force
 generators are disabled. The native timestep is fixed contact regularization,
 not an integration step. Requires ContactLoadServices v0.1.0; install into a
 configuration with its `with_contact_model` helper. No native state is integrated.
+Friction is passive regularized Coulomb friction: below `slip_speed` (m/s),
+sticking is approximated by viscous creep; above it, sliding friction saturates
+at the Coulomb limit. This is not an exact static-friction model.
 """
 Base.@kwdef struct BusBumperContact <: CL.AbstractContactModel
     bus_half_size::SVector{3,Float64} = SVector(.5,.4,.3)
@@ -21,8 +24,7 @@ Base.@kwdef struct BusBumperContact <: CL.AbstractContactModel
     time_constant::Float64 = .01
     damping_ratio::Float64 = 1.0
     impedance::Float64 = .9
-    iterations::Int = 100
-    tolerance::Float64 = 1e-12
+    slip_speed::Float64 = .001
     residual_limit::Float64 = 1e-10
 end
 
@@ -36,10 +38,10 @@ end
 function CL.contact_preflight(c::BusBumperContact, bodies::NTuple{2,CL.ContactBody})
     CL.require_version(v"0.1.0")
     all(x -> isfinite(x) && x > 0, c.bus_half_size) &&
-        all(x -> isfinite(x) && x > 0, (c.bumper_radius,c.timestep,c.time_constant,c.damping_ratio,c.tolerance,c.residual_limit)) ||
+        all(x -> isfinite(x) && x > 0, (c.bumper_radius,c.timestep,c.time_constant,c.damping_ratio,c.slip_speed,c.residual_limit)) ||
         throw(ArgumentError("Contact geometry and numerical settings must be positive and finite."))
-    isfinite(c.friction) && c.friction >= 0 && 0 < c.impedance < 1 && c.iterations > 0 ||
-        throw(ArgumentError("Contact requires finite nonnegative friction, 0 < impedance < 1 and a positive iteration cap."))
+    isfinite(c.friction) && c.friction >= 0 && 0 < c.impedance < 1 ||
+        throw(ArgumentError("Contact requires finite nonnegative friction and 0 < impedance < 1."))
     c.time_constant >= 2c.timestep || throw(ArgumentError("Contact time constant must be >= twice native timestep (refsafe must not clamp it)."))
     c.residual_limit <= 1e-10 || throw(ArgumentError("Contact residual limit must be <= 1e-10 N."))
     return nothing
@@ -63,8 +65,7 @@ function CL.contact_prepare(c::BusBumperContact, bodies::NTuple{2,CL.ContactBody
     dim = c.friction == 0 ? 1 : 3
     xml="""
     <mujoco><compiler alignfree="false" inertiafromgeom="false"/>
-      <option gravity="0 0 0" timestep="$(c.timestep)" jacobian="dense" cone="elliptic"
-        solver="Newton" iterations="$(c.iterations)" tolerance="$(c.tolerance)">
+      <option gravity="0 0 0" timestep="$(c.timestep)" jacobian="dense" cone="elliptic">
         <flag warmstart="disable" sleep="disable" diagexact="enable"/>
       </option><worldbody>
         <body name="bus"><freejoint align="false"/>$(inertials[1])
@@ -100,23 +101,29 @@ function CL.contact_close!(rt::BusBumperRuntime)
     return nothing
 end
 
-function _contact_cone_projection(z)
-    r=norm(z[2:3]); a=z[1]
-    r<=a && return z
-    r<=-a && return zeros(3)
-    return vcat((a+r)/2, (a+r)/(2r).*z[2:3])
+# A coupled constitutive solve, not a projection of a native friction force.
+# W = J M^-1 J'; b_n = J_n a_smooth - a_ref,n.  Tangential force is
+# f_t = -mu*f_n*v_t/max(v_s,|v_t|). Substitution in the unilateral soft-normal
+# equation gives a scalar solve including the normal/tangential mass coupling.
+function _regularized_contact_force(W,Rn,bn,vt,mu,vs)
+    direction=-mu.*vt/max(vs,norm(vt))
+    normal=W[1,1]+Rn
+    coupling=dot(W[1,2:end],direction)
+    denominator=normal+coupling
+    isfinite(denominator) && denominator>sqrt(eps(Float64))*(normal+abs(coupling)) ||
+        throw(ArgumentError("Contact normal/friction response is nonpositive or ill-conditioned; this state is outside the supported single-contact law."))
+    fn=max(zero(bn),-bn/denominator)
+    return vcat(fn,fn.*direction)
 end
 
-function _contact_optimality_residual(rt,J,R,aref,a0,f)
-    isempty(f) && return 0.0
-    A=J*rt.inverse_mass*J'+Diagonal(R)
-    b=J*a0-aref
-    if rt.config.friction==0
-        return norm(f-max.(0.,f-(A*f+b)/opnorm(A)))
-    end
-    D=Diagonal([1.,rt.config.friction,rt.config.friction])
-    z=D\f; H=D*A*D
-    return norm(D*(z-_contact_cone_projection(z-(H*z+D*b)/opnorm(H))))
+function _regularized_contact_residual(W,Rn,bn,vt,mu,vs,f)
+    fn=f[1]; ft=f[2:end]
+    # Independently check the original normal complementarity equation and
+    # tangential constitutive equation, both expressed as force residuals.
+    g=dot(W[1,:],f)+Rn*fn+bn
+    normal=abs(fn-max(0.,fn-g/(W[1,1]+Rn)))
+    tangent=norm(ft+mu*fn.*vt/max(vs,norm(vt)))
+    return max(normal,tangent,max(0.,norm(ft)-mu*fn))
 end
 
 function CL.contact_evaluate!(rt::BusBumperRuntime, states::NTuple{2,CL.ContactState}, t::Float64)
@@ -136,15 +143,25 @@ function CL.contact_evaluate!(rt::BusBumperRuntime, states::NTuple{2,CL.ContactS
         w[4:6,i+1] .= state.smooth_torque_nm
     end
     Binding.set_data_time!(d,t)
-    Binding.forward!(m,d)
+    Binding.contact_terms!(m,d)
     all(Binding.warning_count(d,i)==0 for i in 0:6) || error("Native contact query raised a warning or exhausted capacity.")
     dim=rt.config.friction==0 ? 1 : 3
     Binding.ncon(d)<=1 && Binding.nefc(d) in (0,dim) || error("Unexpected native constraints in the bus–bumper fixture.")
-    f=Binding.efc_force(d)
-    all(isfinite,Binding.qacc(m,d)) && all(isfinite,f) || error("Nonfinite native contact result.")
-    residual=_contact_optimality_residual(rt,Binding.constraint_jacobian(m,d),Binding.efc_R(d),
-        Binding.efc_aref(d),Binding.qacc_smooth(m,d),f)
-    isfinite(residual) && residual<=rt.config.residual_limit || error("Unconverged contact solve: residual=$residual N.")
+    f=Binding.efc_force(d); J=Binding.constraint_jacobian(m,d)
+    a0=Binding.qacc_smooth(m,d)
+    if !isempty(f)
+        W=J*rt.inverse_mass*J'; Rn=Binding.efc_R(d)[1]
+        bn=dot(J[1,:],a0)-Binding.efc_aref(d)[1]
+        vt=Binding.efc_vel(d)[2:end]; c=rt.config
+        f .= _regularized_contact_force(W,Rn,bn,vt,c.friction,c.slip_speed)
+        residual=_regularized_contact_residual(W,Rn,bn,vt,c.friction,c.slip_speed,f)
+        isfinite(residual) && residual<=c.residual_limit || error("Unconverged contact solve: residual=$residual N.")
+        # Keep diagnostic native fields consistent with the actual returned law.
+        # MuJoCo's constraint solver and time integrator are never called here.
+        Binding.qfrc_constraint(m,d) .= J'*f
+        Binding.qacc(m,d) .= a0+rt.inverse_mass*Binding.qfrc_constraint(m,d)
+    end
+    all(isfinite,Binding.qacc(m,d)) && all(isfinite,f) || error("Nonfinite contact result.")
     forces=zeros(3,2); torques=zeros(3,2)
     for index in 1:Binding.ncon(d)
         contact=Binding.contact(d,index)
