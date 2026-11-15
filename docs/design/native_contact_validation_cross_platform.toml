@@ -1,0 +1,96 @@
+cross_platform_agreement = true
+impulse_budget = 0.001
+physically_qualified = false
+schema_version = 1
+trajectory_budget = 0.001
+
+[cases.damped]
+contact_work_difference_J = 1.6029114945081968e-9
+duration_s = 0.25
+left_trajectory_sha256 = "4e6f615cd68f2e4f498c73b5ed018a60c9f7da58c50d7e7d06de9fd487b447b1"
+passed = true
+right_trajectory_sha256 = "31bb7653fd8772ab20d8bf9248bdd0898e6ead7a51993b697de620e3b8a2562a"
+samples = 513
+scaled_angular_impulse_difference = 8.83789312195103e-12
+scaled_impulse_difference = 1.7354930739580874e-9
+scaled_trajectory_difference = 1.3980125235235619e-7
+
+[cases.grazing]
+contact_work_difference_J = 1.4489601983525002e-9
+duration_s = 0.25
+left_trajectory_sha256 = "3e1df689a20349e9def8b8992ac3d36ca9724d7869a9f87a05b488119265eac4"
+passed = true
+right_trajectory_sha256 = "264b0d5a3b7e28ec1fad83f1a9449ca5307cca04f135a450b6888108687e1fce"
+samples = 513
+scaled_angular_impulse_difference = 8.390550582782062e-12
+scaled_impulse_difference = 2.051064801002827e-9
+scaled_trajectory_difference = 6.582328815341043e-8
+
+[cases.head_on]
+contact_work_difference_J = 1.0824674490095276e-15
+duration_s = 0.25
+left_trajectory_sha256 = "e34069cd8a1d07c794edcd648ebd2731d6a2b4a089f6e60c9c36fb6f6114acf9"
+passed = true
+right_trajectory_sha256 = "054a9744193a1c1dd86a9064080cdca3475ce092985c6d121644a09288205755"
+samples = 513
+scaled_angular_impulse_difference = 0.0
+scaled_impulse_difference = 2.9024401929486235e-15
+scaled_trajectory_difference = 1.4126494779498344e-8
+
+[cases.low_slip]
+contact_work_difference_J = 7.170245300280875e-10
+duration_s = 0.25
+left_trajectory_sha256 = "334d757de02b8c4627d17844cd6d3094d6e8f9a62faf5ef3cd6e7a5f3773bd0d"
+passed = true
+right_trajectory_sha256 = "ef19c2684ec2040eee238cbf3237b1033783713eedc1f1a5e4760cb4717dbc3c"
+samples = 513
+scaled_angular_impulse_difference = 6.786810696768342e-13
+scaled_impulse_difference = 7.73845007195554e-10
+scaled_trajectory_difference = 2.2222995435181025e-8
+
+[cases.sliding]
+contact_work_difference_J = 1.3547444763228889e-10
+duration_s = 0.25
+left_trajectory_sha256 = "99a6b5e53be3d1ee46f012addd8afd3959ee765f46343a643d11c4ede3e52896"
+passed = true
+right_trajectory_sha256 = "7f9055f67ab6d1dc9953d9f685eb40fe39d4b538e01b3b27a99b6dbd5acc719f"
+samples = 513
+scaled_angular_impulse_difference = 1.6013839890382017e-11
+scaled_impulse_difference = 1.6249142589219346e-10
+scaled_trajectory_difference = 2.826820839629818e-7
+
+[companion]
+dirty = false
+revision = "088bd8297e1fd6cafda871cb4cef264a19207c97"
+
+[core]
+dirty = false
+revision = "9ee7817763fc5a8d4d5438ca2235393e618e8d7d"
+
+[left]
+julia_version = "1.12.3"
+platform = "x86_64-linux-gnu"
+qualification_failures = ["sliding:opposing_sliding_power", "low_slip:nonpositive_net_friction_work"]
+summary_sha256 = "a46139dc4958e7ffad4b5d981cca5dcfa3609e0481ccd3cea78683ac3ef8db3f"
+
+[right]
+julia_version = "1.12.3"
+platform = "arm64-apple-darwin24.0.0"
+qualification_failures = ["sliding:opposing_sliding_power", "damped:step_2_neg_11", "damped:all_refinements_completed", "low_slip:nonpositive_net_friction_work"]
+summary_sha256 = "719d775e1df17711943dc0de4c01fe9f21cdec686bccc61eb8ebbe10a354b834"
+
+[scales]
+angular_momentum_kg_m2_s = 5.25
+energy_J = 1.3125
+length_m = 1.0
+mass_kg = 21.0
+momentum_kg_m_s = 5.25
+velocity_m_s = 0.25
+
+[source_sha256]
+"Artifacts.toml" = "fe4785401b9984640fa60c900b52fde6bc347e6830148de26dbce010564473bb"
+"examples/bus_bumper_fixture.jl" = "3d4630ee7128e11df12b39fbc38ee57bd6ca78ecb3926c076c9ed314568a0b82"
+"examples/contact_validation.jl" = "7051232a75a56f35e456ebb862345a94f681b6ea908ecd6303a929d8c2a87263"
+"examples/contact_validation_report.jl" = "b9d87bc0a6ad0db29d62093dd35edf519b12a4b0edf2a8d4012055ec3688167d"
+"src/compliant_contact.jl" = "6fe5c8497688502d4ecff1c84c9c0b451db117b5f2be5b9fec8f694f30dc0124"
+"test/contact_validation_tests.jl" = "505c4ac54155da398272fe9bd1710f0456ac6fd7f34a1ed955ef56692abddb05"

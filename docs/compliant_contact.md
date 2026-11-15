@@ -53,6 +53,10 @@ state the equations and qualification scope. The constructor's former native
 friction solver is no longer called. The force certificate retains its maximum
 `1e-10 N` budget, with tighter limits available through `residual_limit`.
 
+The [expanded validation report](design/contact_validation_results.md) records
+trajectory, creep, rejection/replay and cross-platform qualification. Issue #4
+remains open for broader configurations and exact sticking.
+
 ## Validation and historical failure
 
 Tests retain head-on scalar-reference agreement, off-center recoil, full-inertia

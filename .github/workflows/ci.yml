@@ -189,7 +189,16 @@ jobs:
         run: julia --startup-file=no --project="$RUNNER_TEMP/contact-env" test/load_order.jl companion-first
       - name: Mandatory contact interface and native integration tests
         run: |
-          julia --startup-file=no --project="$RUNNER_TEMP/contact-env" -e 'using SpaceAGORA; @assert isdefined(SpaceAGORA,:ContactLoadServices); @assert Threads.nthreads()==4; include("test/runtests.jl")'
+          CONTACT_VALIDATION_TEST_REPORT="$RUNNER_TEMP/contact-validation/tests.toml" julia --startup-file=no --project="$RUNNER_TEMP/contact-env" -e 'using SpaceAGORA; @assert isdefined(SpaceAGORA,:ContactLoadServices); @assert Threads.nthreads()==4; include("test/runtests.jl")'
+      - name: Require short-horizon physical qualification
+        run: julia --startup-file=no --project="$RUNNER_TEMP/contact-env" examples/validate_contact.jl "$RUNNER_TEMP/contact-validation" --require-qualified
+      - name: Record the full two-second validation matrix
+        run: CONTACT_VALIDATION_DURATION_S=2.0 julia --startup-file=no --project="$RUNNER_TEMP/contact-env" examples/validate_contact.jl "$RUNNER_TEMP/contact-validation/long" --require-qualified
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contact-validation-${{ matrix.os }}
+          path: ${{ runner.temp }}/contact-validation
       - name: Record the two-second engine refinement example
         run: julia --startup-file=no --project="$RUNNER_TEMP/contact-env" examples/compliant_contact.jl "$RUNNER_TEMP/contact-engine.toml"
       - uses: actions/upload-artifact@v4
