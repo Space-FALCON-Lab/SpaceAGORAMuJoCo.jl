@@ -9,6 +9,7 @@ capsule-end/box-face or sphere/sphere contact. Its full qualification is pending
 struct CoulombContact <: CL.AbstractHybridContactModel
     geometry::PrimitiveContact
     capture_speed::Float64
+    CoulombContact(geometry::PrimitiveContact, capture_speed::Real) = new(geometry,Float64(capture_speed))
 end
 function CoulombContact(geometries,pairs;capture_speed=1e-7,friction=.4,kwargs...)
     CoulombContact(PrimitiveContact(geometries,pairs;friction,kwargs...),Float64(capture_speed))

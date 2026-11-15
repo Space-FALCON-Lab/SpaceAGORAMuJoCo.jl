@@ -16,7 +16,7 @@ function arm_contact_observation(case,sc,t,rt,origin)
     states=C.ContactState[C.ContactState(r,SVector{3,Float64}(sc.vel),q,SVector{3,Float64}(sc.ω),SVector{3,Float64}(F),CM._rot(q)*T)]
     for i in eachindex(case.plan.model.links)
         aq=normalize(SVector{4,Float64}(sc.arm_q[:,i]))
-        push!(states,C.ContactState(r+SVector{3,Float64}(sc.arm_r[:,i]-sc.pos),SVector{3,Float64}(sc.arm_v[:,i]),aq,
+        push!(states,C.ContactState(r+SVector{3,Float64}(hasproperty(sc,:arm_rel_r) ? sc.arm_rel_r[:,i] : sc.arm_r[:,i]-sc.pos),SVector{3,Float64}(sc.arm_v[:,i]),aq,
             SVector{3,Float64}(sc.arm_ω[:,i]),smooth.forces[i],CM._rot(aq)*smooth.torques_body[i]))
     end
     states=Tuple(states);loads=C.contact_evaluate!(rt,states,Float64(t))
@@ -33,9 +33,9 @@ function arm_contact_observation(case,sc,t,rt,origin)
         b=CA._coupled_parent_kinematics(sc,i,-link.com_offset_parent)
         phi=CM._axis_angle_error(CM._quat_mul(CM._quat_mul(a.q,rest[i]),CM._quat_conj(b.q)))
         max_angle=max(max_angle,norm(phi))
-        U+=(eff.k_translation_n_m*sum(abs2,a.point-b.point)+eff.k_rotation_n_m_rad*sum(abs2,phi))/2
-        midpoint=(a.point+b.point)/2
-        slip=a.point_velocity+cross(a.ω_world,midpoint-a.point)-b.point_velocity-cross(b.ω_world,midpoint-b.point)
+        separation=(a.r-b.r)+a.R*parent_point-b.R*(-link.com_offset_parent)
+        U+=(eff.k_translation_n_m*sum(abs2,separation)+eff.k_rotation_n_m_rad*sum(abs2,phi))/2
+        slip=a.point_velocity-b.point_velocity-cross((a.ω_world+b.ω_world)/2,separation)
         damping-=eff.c_translation_n_s_m*sum(abs2,slip)+eff.c_rotation_n_m_s_rad*sum(abs2,a.ω_world-b.ω_world)
     end
     power=sum(dot(w.force_n,s.velocity_m_s)+dot(w.torque_nm,CM._rot(s.quaternion)*s.angular_velocity_body_rad_s) for (w,s) in zip(loads,states))

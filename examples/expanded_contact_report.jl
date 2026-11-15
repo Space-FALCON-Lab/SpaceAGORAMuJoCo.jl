@@ -16,9 +16,9 @@ expanded_ledger(case,sol;kwargs...)=case.arm ? arm_contact_ledger(case,sol;kwarg
 function expanded_states(sol,t)
     sc=sol(t;continuity=:right).sc[1];origin=first(sol.u).sc[1].pos
     states=[(;r=SVector{3,Float64}(sc.pos-origin),v=SVector{3,Float64}(sc.vel),q=normalize(SVector{4,Float64}(sc.q)),w=SVector{3,Float64}(sc.ω))]
-    arm=hasproperty(sc,:arm_r)&&size(sc.arm_r,2)>0
-    for i in 1:(arm ? size(sc.arm_r,2) : size(sc.att_r,2))
-        push!(states,arm ? (;r=SVector{3,Float64}(sc.arm_r[:,i]-origin),v=SVector{3,Float64}(sc.arm_v[:,i]),q=normalize(SVector{4,Float64}(sc.arm_q[:,i])),w=SVector{3,Float64}(sc.arm_ω[:,i])) :
+    arm=hasproperty(sc,:arm_q)&&size(sc.arm_q,2)>0
+    for i in 1:(arm ? size(sc.arm_q,2) : size(sc.att_r,2))
+        push!(states,arm ? (;r=hasproperty(sc,:arm_rel_r) ? states[1].r+SVector{3,Float64}(sc.arm_rel_r[:,i]) : SVector{3,Float64}(sc.arm_r[:,i]-origin),v=SVector{3,Float64}(sc.arm_v[:,i]),q=normalize(SVector{4,Float64}(sc.arm_q[:,i])),w=SVector{3,Float64}(sc.arm_ω[:,i])) :
             (;r=states[1].r+SVector{3,Float64}(sc.att_r[:,i]),v=states[1].v+SVector{3,Float64}(sc.att_v[:,i]),q=normalize(SVector{4,Float64}(sc.att_q[:,i])),w=SVector{3,Float64}(sc.att_ω[:,i])))
     end
     states

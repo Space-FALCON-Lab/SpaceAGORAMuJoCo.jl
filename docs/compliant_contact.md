@@ -10,7 +10,7 @@ The released-core installation pin remains unchanged. These experiments require
 this exact development pair, also used by the mandatory experimental CI jobs:
 
 ```sh
-SPACEAGORA_CORE_REV=50ba35f6174db59251b5d0e05bc987104f900beb \
+SPACEAGORA_CORE_REV=2ff3b58dbd805fdd62442b1892b863fd25756f10 \
   julia --startup-file=no scripts/setup_env.jl /tmp/contact-env
 julia --startup-file=no --project=/tmp/contact-env test/runtests.jl
 julia --startup-file=no --project=/tmp/contact-env examples/validate_contact.jl /tmp/contact-baseline --require-qualified

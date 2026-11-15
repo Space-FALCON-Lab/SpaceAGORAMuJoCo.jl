@@ -478,3 +478,14 @@ its cases and unresolved limits; it does not establish universal agreement for
 contact or tumbling dynamics. These sources support the current interface and
 its demonstrated cases, while each new scientific application still needs its
 own resolution and model checks.
+
+### Position coordinates for contact-enabled arms
+
+Core stores each contact-enabled arm link's COM as `arm_rel_r`, relative to the
+bus COM in inertial-parallel axes. Its derivative is `arm_v - vel`; `arm_v`
+remains an absolute inertial velocity. Reconstruct a world position with
+`pos + arm_rel_r[:, i]`. The scene exporter handles this automatically. The
+non-contact arm route retains its existing absolute `arm_r` representation.
+This avoids cancellation of small compliant deflections at orbital-sized
+origins; the expanded matrix verifies the same physical trajectory at zero
+and 7,000,000 m origins with the same convergence and conservation budgets.
