@@ -62,7 +62,7 @@ const STATE_INTEGRATION = Cint(1 << 0 | 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4 | 1 <<
 const FUNCTIONS = (:mj_version, :mj_loadXML, :mj_parseXMLString, :mj_compile, :mjs_getError, :mj_deleteSpec,
     :mj_makeData, :mj_deleteData, :mj_deleteModel, :mj_copyModel, :mj_step1, :mj_step2, :mj_forward,
     :mj_resetData, :mj_stateSize, :mj_getState, :mj_setState, :mj_name2id, :mj_id2name, :mj_objectVelocity, :mj_getTotalmass,
-    :mj_contactForce, :mj_isSparse,
+    :mj_contactForce, :mj_isSparse, :mj_geomDistance,
     :mj_fwdPosition, :mj_fwdVelocity, :mj_fwdActuation, :mj_fwdAcceleration)
 
 struct Api
@@ -235,6 +235,16 @@ function contact_force!(res::Vector{Float64}, m::MjModel, d::MjData, index::Inte
     ccall(api().fn.mj_contactForce, Cvoid,
         (Ptr{Cvoid}, Ptr{Cvoid}, Cint, Ptr{Float64}), _ptr(m), _ptr(d), index - 1, res)
     return res
+end
+
+"""Signed distance between two one-based geometry indices after a position query.
+The result is capped above by the finite positive `maximum_distance` (meters).
+"""
+function geom_distance(m::MjModel,d::MjData,a::Integer,b::Integer;maximum_distance=1e3)
+    1<=a<=ngeom(m) && 1<=b<=ngeom(m) || throw(BoundsError(1:ngeom(m),(a,b)))
+    isfinite(maximum_distance) && maximum_distance>0 || throw(ArgumentError("Distance cap must be positive and finite."))
+    ccall(api().fn.mj_geomDistance,Float64,(Ptr{Cvoid},Ptr{Cvoid},Cint,Cint,Float64,Ptr{Float64}),
+        _ptr(m),_ptr(d),a-1,b-1,maximum_distance,C_NULL)
 end
 
 """6D velocity (angular; linear) of a body about its center of mass, in world axes. Needs fresh `cvel`."""

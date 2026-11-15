@@ -163,14 +163,14 @@ jobs:
           - os: macos-15
             arch: aarch64
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       JULIA_LOAD_PATH: "@:@stdlib"
       JULIA_NUM_THREADS: "4"
       OPENBLAS_NUM_THREADS: "1"
       JULIA_PKG_PRECOMPILE_AUTO: "0"
       SPACEAGORA_MUJOCO_REQUIRED: "1"
-      SPACEAGORA_CORE_REV: 7c83bbf86499833addbba8a76ed7b6dfc743295e
+      SPACEAGORA_CORE_REV: 2ff3b58dbd805fdd62442b1892b863fd25756f10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -194,6 +194,10 @@ jobs:
         run: julia --startup-file=no --project="$RUNNER_TEMP/contact-env" examples/validate_contact.jl "$RUNNER_TEMP/contact-validation" --require-qualified
       - name: Record the full two-second validation matrix
         run: CONTACT_VALIDATION_DURATION_S=2.0 julia --startup-file=no --project="$RUNNER_TEMP/contact-env" examples/validate_contact.jl "$RUNNER_TEMP/contact-validation/long" --require-qualified
+      - name: Require exact sticking, compliant arm and simultaneous-contact qualification
+        run: julia --startup-file=no --project="$RUNNER_TEMP/contact-env" examples/validate_expanded_contact.jl "$RUNNER_TEMP/contact-validation/expanded" --require-qualified
+      - name: Require the full two-second expanded validation matrix
+        run: CONTACT_VALIDATION_DURATION_S=2.0 julia --startup-file=no --project="$RUNNER_TEMP/contact-env" examples/validate_expanded_contact.jl "$RUNNER_TEMP/contact-validation/expanded-long" --require-qualified
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -207,3 +211,35 @@ jobs:
           path: ${{ runner.temp }}/contact-engine.toml
       - name: Verify tracked installation inputs were not changed
         run: git diff --exit-code
+
+  contact-platform-agreement:
+    needs: experimental-contact-pair
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.12.3'
+      - uses: actions/download-artifact@v4
+        with:
+          name: contact-validation-ubuntu-latest
+          path: ${{ runner.temp }}/contact-linux
+      - uses: actions/download-artifact@v4
+        with:
+          name: contact-validation-macos-15
+          path: ${{ runner.temp }}/contact-macos
+      - name: Require matching baseline and expanded trajectories at both horizons
+        run: |
+          mkdir -p "$RUNNER_TEMP/contact-comparison"
+          julia --startup-file=no examples/compare_contact_platforms.jl "$RUNNER_TEMP/contact-linux" "$RUNNER_TEMP/contact-macos" "$RUNNER_TEMP/contact-comparison/baseline-short.toml"
+          julia --startup-file=no examples/compare_contact_platforms.jl "$RUNNER_TEMP/contact-linux/long" "$RUNNER_TEMP/contact-macos/long" "$RUNNER_TEMP/contact-comparison/baseline-long.toml"
+          julia --startup-file=no examples/compare_expanded_contact_platforms.jl "$RUNNER_TEMP/contact-linux/expanded" "$RUNNER_TEMP/contact-macos/expanded" "$RUNNER_TEMP/contact-comparison/expanded-short.toml"
+          julia --startup-file=no examples/compare_expanded_contact_platforms.jl "$RUNNER_TEMP/contact-linux/expanded-long" "$RUNNER_TEMP/contact-macos/expanded-long" "$RUNNER_TEMP/contact-comparison/expanded-long.toml"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contact-platform-comparison
+          path: ${{ runner.temp }}/contact-comparison

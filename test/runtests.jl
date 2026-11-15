@@ -2,6 +2,7 @@
 # libmujoco cannot be loaded (unsupported platform, or no network for the Linux tarball or the macOS disk image).
 using Test
 using SpaceAGORAMuJoCo
+include("expanded_comparison_tests.jl")
 
 const _mujoco_ok = try
     version = SpaceAGORAMuJoCo.Binding.version()
@@ -25,6 +26,10 @@ if _mujoco_ok
         if isdefined(SpaceAGORAMuJoCo.SpaceAGORA, :ContactLoadServices)
             include("compliant_contact_tests.jl")
             include("regularized_friction_tests.jl")
+            include("primitive_contact_tests.jl")
+            include("coulomb_force_tests.jl")
+            include("coulomb_geometry_tests.jl")
+            include("coulomb_contact_tests.jl")
             include("contact_validation_tests.jl")
         else
             @test_throws ArgumentError BusBumperContact()

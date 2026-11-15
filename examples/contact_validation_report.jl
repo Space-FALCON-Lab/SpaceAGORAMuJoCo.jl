@@ -26,7 +26,7 @@ function write_contact_validation_report(directory; duration=.25)
         "companion"=>contact_source_record(companion),"source_sha256"=>hashes,
         "julia_version"=>string(VERSION),"platform"=>string(Sys.MACHINE),
         "native_version"=>SpaceAGORAMuJoCo.Binding.version(),
-        "contact_contract_version"=>"0.1.0",
+        "contact_contract_version"=>"0.2.0",
         "frame"=>"fixed initial bus origin translated at constant initial system COM velocity; axes parallel to inertial axes",
         "scales"=>Dict("mass_kg"=>21.,"length_m"=>1.,"velocity_m_s"=>.25,
             "momentum_kg_m_s"=>5.25,"angular_momentum_kg_m2_s"=>5.25,"energy_J"=>1.3125),

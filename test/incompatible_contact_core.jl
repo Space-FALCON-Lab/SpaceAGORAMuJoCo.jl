@@ -6,8 +6,8 @@ isdefined(SpaceAGORA,:ContactLoadServices) || error("Paired-core CI must provide
     source=read(path,String)
     # Replace just the contract include with the same source requesting 0.0.0.
     contract=read(joinpath(dirname(path),"contact_contract.jl"),String)
-    @test count("v\"0.1.0\"",contract)==1
-    incompatible=replace(source,"include(\"contact_contract.jl\")"=>replace(contract,"v\"0.1.0\""=>"v\"0.0.0\""))
+    @test count("v\"0.2.0\"",contract)==1
+    incompatible=replace(source,"include(\"contact_contract.jl\")"=>replace(contract,"v\"0.2.0\""=>"v\"0.0.0\""))
     failure=try
         Base.include_string(Main,incompatible,path)
         nothing

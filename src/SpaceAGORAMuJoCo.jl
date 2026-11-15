@@ -34,14 +34,19 @@ include("proximity_scene.jl")
 include("engine_coupling.jl")
 if isdefined(SpaceAGORA, :ContactLoadServices)
     include("compliant_contact.jl")
+    include("primitive_contact.jl")
+    include("coulomb_contact.jl")
 else
-    """Experimental bus–bumper coupling requires a core with ContactLoadServices v0.1.0."""
+    """Experimental bus–bumper coupling requires a core with ContactLoadServices v0.2.0."""
     BusBumperContact(; kwargs...) = throw(ArgumentError(
-        "BusBumperContact requires SpaceAGORA.ContactLoadServices v0.1.0. The pinned released core does not yet provide this experimental interface."))
+        "BusBumperContact requires SpaceAGORA.ContactLoadServices v0.2.0. The pinned released core does not yet provide this experimental interface."))
+    ContactGeometry(args...;kwargs...) = throw(ArgumentError("ContactGeometry requires SpaceAGORA.ContactLoadServices v0.2.0."))
+    PrimitiveContact(args...;kwargs...) = throw(ArgumentError("PrimitiveContact requires SpaceAGORA.ContactLoadServices v0.2.0."))
+    CoulombContact(args...;kwargs...) = throw(ArgumentError("CoulombContact requires SpaceAGORA.ContactLoadServices v0.2.0."))
 end
 
 export ProximityScene, SceneBodyState, SceneState, body_state_from_initial_condition
-export BusBumperContact
+export BusBumperContact, ContactGeometry, PrimitiveContact, CoulombContact
 export sa_to_mujoco_quaternion, mujoco_to_sa_quaternion, ProximitySceneDynamics, ProximitySceneRuntime, scene_body_pose_save_field
 export scene_reset!, scene_step!, scene_state, scene_set_state!, scene_time, scene_chief, scene_body_names,
     scene_body_state, scene_ctrl, scene_arena_use

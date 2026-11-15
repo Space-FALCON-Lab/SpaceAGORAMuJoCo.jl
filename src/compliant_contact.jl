@@ -1,5 +1,5 @@
 # Experimental state-to-wrench provider. Integration remains entirely in core.
-CL.require_version(v"0.1.0")
+CL.require_version(v"0.2.0")
 
 """
     BusBumperContact(; bus_half_size=(0.5,0.4,0.3), bumper_radius=0.1, friction=0.0,
@@ -10,7 +10,7 @@ Experimental contact between a box centered on the rigid bus COM and a sphere
 centered on its sole compliant attachment body. Core supplies both physical
 inertias and every trial state/smooth COM wrench. Native gravity and other force
 generators are disabled. The native timestep is fixed contact regularization,
-not an integration step. Requires ContactLoadServices v0.1.0; install into a
+not an integration step. Requires ContactLoadServices v0.2.0; install into a
 configuration with its `with_contact_model` helper. No native state is integrated.
 Friction is passive regularized Coulomb friction: below `slip_speed` (m/s),
 sticking is approximated by viscous creep; above it, sliding friction saturates
@@ -36,7 +36,7 @@ struct BusBumperRuntime <: CL.AbstractContactRuntime
 end
 
 function CL.contact_preflight(c::BusBumperContact, bodies::NTuple{2,CL.ContactBody})
-    CL.require_version(v"0.1.0")
+    CL.require_version(v"0.2.0")
     all(x -> isfinite(x) && x > 0, c.bus_half_size) &&
         all(x -> isfinite(x) && x > 0, (c.bumper_radius,c.timestep,c.time_constant,c.damping_ratio,c.slip_speed,c.residual_limit)) ||
         throw(ArgumentError("Contact geometry and numerical settings must be positive and finite."))
@@ -47,21 +47,23 @@ function CL.contact_preflight(c::BusBumperContact, bodies::NTuple{2,CL.ContactBo
     return nothing
 end
 
+function _contact_inertial_xml(b)
+    # Supply a high-accuracy principal frame explicitly: MuJoCo's XML
+    # fullinertia eigensolver otherwise leaves ~1e-9 frame errors.
+    e=eigen(Symmetric(Matrix(b.inertia_body_kg_m2)))
+    R=copy(e.vectors)
+    det(R)<0 && (R[:,3] .*= -1)
+    K=[R[1,1]-R[2,2]-R[3,3] R[1,2]+R[2,1] R[1,3]+R[3,1] R[3,2]-R[2,3];
+       R[1,2]+R[2,1] R[2,2]-R[1,1]-R[3,3] R[2,3]+R[3,2] R[1,3]-R[3,1];
+       R[1,3]+R[3,1] R[2,3]+R[3,2] R[3,3]-R[1,1]-R[2,2] R[2,1]-R[1,2];
+       R[3,2]-R[2,3] R[1,3]-R[3,1] R[2,1]-R[1,2] tr(R)]
+    q=eigen(Symmetric(K)).vectors[:,end]
+    "<inertial pos=\"0 0 0\" mass=\"$(b.mass_kg)\" diaginertia=\"$(join(e.values,' '))\" quat=\"$(join(q[[4,1,2,3]],' '))\"/>"
+end
+
 function CL.contact_prepare(c::BusBumperContact, bodies::NTuple{2,CL.ContactBody})
     CL.contact_preflight(c,bodies)
-    inertials=map(bodies) do b
-        # Supply a high-accuracy principal frame explicitly: MuJoCo's XML
-        # fullinertia eigensolver otherwise leaves ~1e-9 frame errors.
-        e=eigen(Symmetric(Matrix(b.inertia_body_kg_m2)))
-        R=copy(e.vectors)
-        det(R)<0 && (R[:,3] .*= -1)
-        K=[R[1,1]-R[2,2]-R[3,3] R[1,2]+R[2,1] R[1,3]+R[3,1] R[3,2]-R[2,3];
-           R[1,2]+R[2,1] R[2,2]-R[1,1]-R[3,3] R[2,3]+R[3,2] R[1,3]-R[3,1];
-           R[1,3]+R[3,1] R[2,3]+R[3,2] R[3,3]-R[1,1]-R[2,2] R[2,1]-R[1,2];
-           R[3,2]-R[2,3] R[1,3]-R[3,1] R[2,1]-R[1,2] tr(R)]
-        q=eigen(Symmetric(K)).vectors[:,end]
-        "<inertial pos=\"0 0 0\" mass=\"$(b.mass_kg)\" diaginertia=\"$(join(e.values,' '))\" quat=\"$(join(q[[4,1,2,3]],' '))\"/>"
-    end
+    inertials=map(_contact_inertial_xml,bodies)
     dim = c.friction == 0 ? 1 : 3
     xml="""
     <mujoco><compiler alignfree="false" inertiafromgeom="false"/>

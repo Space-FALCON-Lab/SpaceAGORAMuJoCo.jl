@@ -185,11 +185,12 @@ for managing the checkout and the
 [SpaceAGORA MuJoCo guide](https://github.com/Space-FALCON-Lab/SpaceAGORA.jl/blob/v0.7.1/docs/src/user/mujoco_scenes.md)
 for SpaceAGORA's side.
 
-MuJoCo contacts act on the geometry inside the native scene. Exchanging contact
-forces with SpaceAGORA's compliant multibody dynamics is not implemented or
-validated; that two-way coupling is tracked in
-[issue #4](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/issues/4).
-Core actuators and sensors are not connected to coupled scenes either. Read the
+MuJoCo contacts act on the geometry inside the native scene. A separate
+[experimental contact service](docs/compliant_contact.md) lets core integrate
+compliant attachments or its existing compliant robot arm while the companion
+returns contact loads. It requires an exact development-core pin and has its own
+physical qualification matrix. Core actuators and sensors are not connected to
+these experiments. Read the
 [scope and practical limits](docs/user_guide.md#scope-and-practical-limits)
 before combining models.
 
@@ -334,8 +335,10 @@ MuJoCo runs in the Julia process, so a native fault ends the process. In 3.11.0,
 
 ### Experimental compliant contact
 
-The paired development core can integrate a rigid bus and one compliant bumper
-while MuJoCo supplies same-trial-state contact forces. See
+The paired development core integrates a rigid bus and compliant attachments or
+arm links while MuJoCo supplies same-trial-state contact geometry. The companion
+offers passive regularized friction for explicit sphere/box/capsule pairs and
+exact Coulomb sticking for an isolated supported contact. See
 [the engine-coupling example and validation scope](docs/compliant_contact.md).
 The normal released-core installation pin and existing proximity scenes are
 unchanged; this new experiment requires the exact core revision documented there.
