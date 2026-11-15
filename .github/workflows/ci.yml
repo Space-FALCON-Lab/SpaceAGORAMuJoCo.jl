@@ -211,3 +211,35 @@ jobs:
           path: ${{ runner.temp }}/contact-engine.toml
       - name: Verify tracked installation inputs were not changed
         run: git diff --exit-code
+
+  contact-platform-agreement:
+    needs: experimental-contact-pair
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.12.3'
+      - uses: actions/download-artifact@v4
+        with:
+          name: contact-validation-ubuntu-latest
+          path: ${{ runner.temp }}/contact-linux
+      - uses: actions/download-artifact@v4
+        with:
+          name: contact-validation-macos-15
+          path: ${{ runner.temp }}/contact-macos
+      - name: Require matching baseline and expanded trajectories at both horizons
+        run: |
+          mkdir -p "$RUNNER_TEMP/contact-comparison"
+          julia --startup-file=no examples/compare_contact_platforms.jl "$RUNNER_TEMP/contact-linux" "$RUNNER_TEMP/contact-macos" "$RUNNER_TEMP/contact-comparison/baseline-short.toml"
+          julia --startup-file=no examples/compare_contact_platforms.jl "$RUNNER_TEMP/contact-linux/long" "$RUNNER_TEMP/contact-macos/long" "$RUNNER_TEMP/contact-comparison/baseline-long.toml"
+          julia --startup-file=no examples/compare_expanded_contact_platforms.jl "$RUNNER_TEMP/contact-linux/expanded" "$RUNNER_TEMP/contact-macos/expanded" "$RUNNER_TEMP/contact-comparison/expanded-short.toml"
+          julia --startup-file=no examples/compare_expanded_contact_platforms.jl "$RUNNER_TEMP/contact-linux/expanded-long" "$RUNNER_TEMP/contact-macos/expanded-long" "$RUNNER_TEMP/contact-comparison/expanded-long.toml"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contact-platform-comparison
+          path: ${{ runner.temp }}/contact-comparison
