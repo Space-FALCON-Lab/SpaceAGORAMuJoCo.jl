@@ -4,7 +4,7 @@ using SpaceAGORA, StaticArrays, LinearAlgebra
 function bus_bumper_configuration(; h=2.0^-12, duration=2., output_step=2.0^-11,
         offset=0., tangent=0., origin=SVector(7e6,0.,0.), boost=SVector(0.,0.,0.),
         attitude=SVector(0.,0.,0.,1.), gap=.01, normal_speed=.25,
-        translation_damping=0., tolerance=1e-10)
+        translation_damping=0., tolerance=1e-10, rest_gap=.01, rest_tangent=0.)
     bus=Link(root=true,m=20.,dims=MVector(1.,.8,.6))
     q=normalize(SVector{4,Float64}(attitude))
     x,y,z,w=q
@@ -15,7 +15,7 @@ function bus_bumper_configuration(; h=2.0^-12, duration=2., output_step=2.0^-11,
     node=CompliantTopologyNode(:bumper; mass_kg=1.,inertia_body_kg_m2=.004,
         position=SVector(.1+gap,0.,0.),velocity=relative_velocity)
     edge=CompliantTopologyEdge(:mount,0,1; parent_point_body=SVector(0.,0.,0.),
-        child_point_body=SVector(-.11,0.,0.),k_translation_n_m=200.,
+        child_point_body=SVector(-.1-rest_gap,rest_tangent,0.),k_translation_n_m=200.,
         c_translation_n_s_m=translation_damping,k_rotation_n_m_rad=2.,c_rotation_n_m_s_rad=.02)
     attachment=CompliantAttachment(model=build_compliant_topology([node],[edge]),
         link=bus,mount_point=SVector(.5,offset,0.))

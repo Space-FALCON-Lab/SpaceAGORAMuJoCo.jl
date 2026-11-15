@@ -1,15 +1,16 @@
 # Two-way compliant multibody–MuJoCo contact coupling
 
-Implementation status: the damping prerequisite and native feasibility slice are
-merged in core #604 and companion #29. The next experimental engine slice uses
-`ContactLoadServices v0.1.0`; see [its current scope, reproducible example and
-remaining qualification](../compliant_contact.md). The matrix below remains the
-broader acceptance plan. Its prospective damping restriction is superseded by
+Implementation status: core #604/#605 and companion #29/#30/#31 established the
+regularized bus–bumper baseline. The expanded implementation uses
+`ContactLoadServices v0.2.0` for multiple physical bodies and accepted stick/slip
+transitions; see [the current API and reproducible qualification](../compliant_contact.md)
+and [expanded completion gates](contact_scope_expansion.md). The matrix below is
+the historical acceptance plan. Its prospective damping restriction is superseded by
 the objective midpoint damping correction in #604; the first engine slice permits
 finite nonnegative isotropic coefficients.
 
 
-**Status: proposed architecture and validation plan, 2026-11-13.** This is the
+**Historical architecture and validation plan, 2026-11-13.** This is the
 first design deliverable for [issue #4](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/issues/4),
 not an implemented API or a claim of numerical validation. The existing
 external-owner refusals remain in force. Completing the first configuration
@@ -17,7 +18,8 @@ below does not establish support for arbitrary robot arms or close the whole iss
 
 The first implementation work and measured native-query evidence are recorded
 in [initial contact feasibility results](contact_feasibility_results.md).
-The engine coupling and supported API described here remain proposed.
+Prospective names and solver choices below are retained as design history;
+the current API and friction equations are documented in the linked guide.
 
 ## Decision and first configuration
 

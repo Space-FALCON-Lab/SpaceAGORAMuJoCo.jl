@@ -446,14 +446,13 @@ not transferred to owned bodies. Core control effectors on those bodies are
 refused. A spacecraft cannot simultaneously use scene ownership and the core's
 articulated joints, compliant attachments or robot-arm dynamics.
 
-In particular, this adapter does not feed MuJoCo contact forces back into
-SpaceAGORA's compliant multibody model. Keeping that model while adding MuJoCo
-contacts needs a two-way coupling layer that synchronizes positions and
-velocities, transfers contact forces and moments, and validates stability and
-energy behavior. This work is not implemented or validated; the development
-plan is tracked in [issue #4](https://github.com/Space-FALCON-Lab/SpaceAGORAMuJoCo.jl/issues/4).
-The [architecture and validation proposal](design/compliant_contact_coupling.md)
-defines the first bus–bumper configuration and the evidence required before support.
+This external propagation adapter does not feed contact forces back into core's
+compliant multibody model. Use the separate [experimental contact service](compliant_contact.md)
+for that route: core assembles smooth joint loads and integrates all bodies,
+while the companion returns contact-only COM wrenches. The exact development-core
+pin, supported primitive geometry, regularized versus exact-sticking models and
+required physical qualification are documented there. The two ownership modes
+cannot be combined on the same bodies.
 
 Use a fixed mission duration. Orbit-count termination, atmosphere-interface
 events and continuous touchdown events on owned spacecraft are outside the

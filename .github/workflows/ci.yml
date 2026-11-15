@@ -163,14 +163,14 @@ jobs:
           - os: macos-15
             arch: aarch64
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       JULIA_LOAD_PATH: "@:@stdlib"
       JULIA_NUM_THREADS: "4"
       OPENBLAS_NUM_THREADS: "1"
       JULIA_PKG_PRECOMPILE_AUTO: "0"
       SPACEAGORA_MUJOCO_REQUIRED: "1"
-      SPACEAGORA_CORE_REV: 7c83bbf86499833addbba8a76ed7b6dfc743295e
+      SPACEAGORA_CORE_REV: 50ba35f6174db59251b5d0e05bc987104f900beb
     steps:
       - uses: actions/checkout@v7
         with:
@@ -194,6 +194,10 @@ jobs:
         run: julia --startup-file=no --project="$RUNNER_TEMP/contact-env" examples/validate_contact.jl "$RUNNER_TEMP/contact-validation" --require-qualified
       - name: Record the full two-second validation matrix
         run: CONTACT_VALIDATION_DURATION_S=2.0 julia --startup-file=no --project="$RUNNER_TEMP/contact-env" examples/validate_contact.jl "$RUNNER_TEMP/contact-validation/long" --require-qualified
+      - name: Require exact sticking, compliant arm and simultaneous-contact qualification
+        run: julia --startup-file=no --project="$RUNNER_TEMP/contact-env" examples/validate_expanded_contact.jl "$RUNNER_TEMP/contact-validation/expanded" --require-qualified
+      - name: Require the full two-second expanded validation matrix
+        run: CONTACT_VALIDATION_DURATION_S=2.0 julia --startup-file=no --project="$RUNNER_TEMP/contact-env" examples/validate_expanded_contact.jl "$RUNNER_TEMP/contact-validation/expanded-long" --require-qualified
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -36,6 +36,8 @@ end
 
 function contact_observation(model,sv,t,origin,frame_velocity,rt)
     C=SpaceAGORA.ContactLoadServices; B=SpaceAGORAMuJoCo.Binding
+    native=rt isa SpaceAGORAMuJoCo.CoulombContactRuntime ? rt.primitive : rt
+    settings=native isa SpaceAGORAMuJoCo.PrimitiveContactRuntime ? native.config.settings : native.config
     j=only(model.joints)
     r=SVector{3,Float64}(sv.pos)-origin-t*frame_velocity
     a=SVector{3,Float64}(sv.att_r[:,1]); v=SVector{3,Float64}(sv.vel)-frame_velocity
@@ -66,16 +68,16 @@ function contact_observation(model,sv,t,origin,frame_velocity,rt)
     P=sum(b.mass_kg*s.velocity_m_s for (b,s) in zip(model.bodies,states))
     H=sum(cross(s.position_m,b.mass_kg*s.velocity_m_s)+
         contact_rotation(s.quaternion)*(b.inertia_body_kg_m2*s.angular_velocity_body_rad_s) for (b,s) in zip(model.bodies,states))
-    local_center=R'*a; delta=abs.(local_center)-rt.config.bus_half_size
-    gap=norm(max.(delta,0.))+min(maximum(delta),0.)-rt.config.bumper_radius
-    offset=local_center-clamp.(local_center,-rt.config.bus_half_size,rt.config.bus_half_size)
+    local_center=R'*a; delta=abs.(local_center)-settings.bus_half_size
+    gap=norm(max.(delta,0.))+min(maximum(delta),0.)-settings.bumper_radius
+    offset=local_center-clamp.(local_center,-settings.bus_half_size,settings.bus_half_size)
     normal_local=offset/norm(offset)
     gap_rate=dot(normal_local,R'*SVector{3,Float64}(sv.att_v[:,1])-cross(w,local_center))
-    fcon=copy(B.efc_force(rt.data)); vcon=copy(B.efc_vel(rt.data))
+    fcon=copy(B.efc_force(native.data)); vcon=copy(B.efc_vel(native.data))
     normal=isempty(fcon) ? 0. : fcon[1]
     ft=length(fcon)==3 ? norm(fcon[2:3]) : 0.
     slip_speed=length(vcon)==3 ? norm(vcon[2:3]) : 0.
-    cone_ratio=normal>1e-9 && rt.config.friction>0 ? ft/(rt.config.friction*normal) : 0.
+    cone_ratio=normal>1e-9 && settings.friction>0 ? ft/(settings.friction*normal) : 0.
     friction_power=length(fcon)==3 ? dot(fcon[2:3],vcon[2:3]) : 0.
     power_projection_error=abs(contact_power-dot(fcon,vcon))
     pair_force=norm(loads[1].force_n+loads[2].force_n)
