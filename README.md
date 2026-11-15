@@ -331,3 +331,11 @@ MuJoCo runs in the Julia process, so a native fault ends the process. In 3.11.0,
 
 - [Giusy Falcone](https://github.com/gfalcon2)
 - [Evan Yu](https://github.com/EvanY14)
+
+### Experimental compliant contact
+
+The paired development core can integrate a rigid bus and one compliant bumper
+while MuJoCo supplies same-trial-state contact forces. See
+[the engine-coupling example and validation scope](docs/compliant_contact.md).
+The normal released-core installation pin and existing proximity scenes are
+unchanged; this new experiment requires the exact core revision documented there.
