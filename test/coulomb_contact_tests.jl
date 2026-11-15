@@ -61,6 +61,7 @@ end
             states=(C.ContactState(z,z,q,z,z,z),C.ContactState(SVector(.59998,0.,0.),SVector(0.,1e-9cos(angle),1e-9sin(angle)),q,z,SVector(-2.,10.,0.),z))
             query=SpaceAGORAMuJoCo._coulomb_query(rt,states,0.)
             @test query.departure && query.margin<0
+            @test dot(query.f[2:3],query.velocity)<=1e-20
             corrections=C.contact_accept!(rt,states,0.)
             after=map(states,corrections) do s,c
                 C.ContactState(s.position_m,s.velocity_m_s+c.linear_world_m_s,s.quaternion,
@@ -73,6 +74,11 @@ end
             kinetic(ss)=sum((b.mass_kg*sum(abs2,s.velocity_m_s)+dot(s.angular_velocity_body_rad_s,b.inertia_body_kg_m2*s.angular_velocity_body_rad_s))/2 for (b,s) in zip(bodies,ss))
             @test kinetic(after)<=kinetic(states)+1e-30
             @test !rt.sticking && isempty(rt.transitions)
+        end
+        for speed in (prevfloat(rt.config.capture_speed),rt.config.capture_speed,nextfloat(rt.config.capture_speed)),sign in (-1.,1.)
+            states=(C.ContactState(z,z,q,z,z,z),C.ContactState(SVector(.59998,0.,0.),SVector(0.,sign*speed,0.),q,z,SVector(-2.,10.,0.),z))
+            query=SpaceAGORAMuJoCo._coulomb_query(rt,states,0.)
+            @test dot(query.f[2:3],query.velocity)<=1e-20
         end
     finally
         C.contact_close!(rt)

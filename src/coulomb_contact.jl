@@ -107,10 +107,15 @@ function _coulomb_query(rt::CoulombContactRuntime,states,t)
     # release. This numerical startup window is independently refined with
     # capture_speed; it introduces no viscous law or subcritical creep.
     departure=!rt.sticking && norm(velocity)<=rt.config.capture_speed && margin<=0
+    departure_force=departure ? _coulomb_breakaway_force(W,Rn,b,mu;residual_limit=p.config.settings.residual_limit) : zeros(3)
+    # Incoming slip must still be opposed before accepted capture. In
+    # particular, roundoff at the startup-window boundary cannot flip its
+    # friction power positive in a different inertial frame.
+    outgoing=departure && dot(departure_force[2:3],velocity)<=0
     f=if rt.sticking
         candidate[1]>0 ? candidate : zeros(3)
-    elseif departure
-        _coulomb_breakaway_force(W,Rn,b,mu;residual_limit=p.config.settings.residual_limit)
+    elseif outgoing
+        departure_force
     elseif norm(velocity)>0
         _coulomb_sliding_force(W,Rn,b[1],velocity,mu)
     else
@@ -121,7 +126,7 @@ function _coulomb_query(rt::CoulombContactRuntime,states,t)
     residual=abs(f[1]-max(0.,f[1]-((W*f+b)[1]+Rn*f[1])/(W[1,1]+Rn)))
     if rt.sticking && f[1]>0
         residual=max(residual,norm((W*f+b)[2:3])/minimum(eigvals(Symmetric(W[2:3,2:3]))))
-    elseif departure
+    elseif outgoing
         acceleration=(W*f+b)[2:3]
         if norm(f[2:3])>0
             direction=-f[2:3]/norm(f[2:3])
@@ -133,7 +138,7 @@ function _coulomb_query(rt::CoulombContactRuntime,states,t)
         residual=max(residual,norm(f[2:3]+mu*f[1]*velocity/norm(velocity)))
     end
     isfinite(residual) && residual<=p.config.settings.residual_limit || error("Unconverged Coulomb force certificate at $t s: $residual N (sticking=$(rt.sticking), departure=$departure).")
-    (;contacts,active=true,departure,f,candidate,margin,velocity,J=copy(J),W)
+    (;contacts,active=true,departure,departure_force,f,candidate,margin,velocity,J=copy(J),W)
 end
 
 function CL.contact_evaluate!(rt::CoulombContactRuntime,states::NTuple{N,CL.ContactState},t::Float64) where {N}
@@ -155,7 +160,7 @@ function CL.contact_accept!(rt::CoulombContactRuntime,states::NTuple{N,CL.Contac
     end
     old==rt.sticking || push!(rt.transitions,(t,rt.sticking))
     zero3=SVector(0.,0.,0.)
-    if !rt.sticking && (!query.active || !query.departure || norm(query.f[2:3])==0)
+    if !rt.sticking && (!query.active || !query.departure || norm(query.departure_force[2:3])==0)
         return ntuple(_->CL.ContactVelocityCorrection(zero3,zero3),N)
     end
     rt.sticking && norm(query.velocity)>2rt.config.capture_speed && error("Sticking velocity drift exceeds the numerical capture budget.")
@@ -163,7 +168,7 @@ function CL.contact_accept!(rt::CoulombContactRuntime,states::NTuple{N,CL.Contac
     effective=Jt*inverse*Jt'
     target=zeros(2)
     if !rt.sticking
-        direction=-query.f[2:3]/norm(query.f[2:3])
+        direction=-query.departure_force[2:3]/norm(query.departure_force[2:3])
         speed=max(0.,dot(direction,effective\query.velocity)/dot(direction,effective\direction))
         target.=speed*direction
     end
