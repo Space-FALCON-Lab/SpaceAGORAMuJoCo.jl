@@ -1,5 +1,5 @@
 # Reports every gate without claiming that a passing bookkeeping ledger qualifies
-# friction. --require-qualified is a strict gate and currently exits nonzero.
+# friction. --require-qualified makes every physical gate mandatory.
 using SpaceAGORA, SpaceAGORAMuJoCo
 include("bus_bumper_fixture.jl")
 include("contact_validation.jl")

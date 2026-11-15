@@ -21,12 +21,12 @@ axes[0, 0].plot(t, power, color="#a23535", lw=1.5)
 axes[0, 0].axhline(0, color="black", lw=.6)
 axes[0, 0].fill_between(t, power, 0, where=[p > 0 for p in power], color="#a23535", alpha=.25)
 axes[0, 0].set(xlim=(.04, .08), xlabel="Time (s)", ylabel="Tangential power (W)",
-               title="Sliding: opposing-power gate fails")
+               title="Sliding: passive friction")
 energy = series(sliding, "mechanical_energy_J")
 work = [float(r["contact_work_J"]) + float(r["joint_damping_work_J"]) for r in sliding]
 axes[0, 1].plot(t, [e-energy[0] for e in energy], label="Mechanical energy change", lw=2)
 axes[0, 1].plot(t, work, "--", label="Contact + joint damping work", lw=1.5)
-axes[0, 1].set(xlabel="Time (s)", ylabel="Energy / work (J)", title="A closed ledger does not qualify friction")
+axes[0, 1].set(xlabel="Time (s)", ylabel="Energy / work (J)", title="Independent energy-work closure")
 axes[0, 1].legend(fontsize=8)
 for name in ("head_on", "sliding", "damped", "low_slip", "grazing"):
     data = rows(name + ".csv")
@@ -50,6 +50,6 @@ if any(r["status"] == "failed" for r in convergence):
     axes[1, 1].text(.03, .03, "Gaps mark refused native solves", transform=axes[1, 1].transAxes, fontsize=8)
 for ax in axes.flat:
     ax.grid(alpha=.2)
-fig.suptitle("Issue #4: measured validation, with friction qualification blocked", fontsize=13)
+fig.suptitle("Issue #4: passive regularized friction validation", fontsize=13)
 fig.savefig(root / "validation.png", dpi=160)
 fig.savefig(root / "validation.svg")
