@@ -57,5 +57,10 @@ must not introduce a physical creep parameter.
    source provenance; require qualification on Linux and macOS and compare them.
 
 The original merged baseline remains core `7c83bbf8` and companion `eb91139a`.
-The expanded implementation and its qualification are in progress. Issue #4
-must remain open until these gates pass.
+The expanded implementation is paired core PR #606 and companion PR #32.
+The `experimental-contact-pair` jobs produce both horizons on Linux and macOS;
+`contact-platform-agreement` requires all four matching-source comparisons and
+publishes the numerical summaries in `contact-platform-comparison`. Source
+revisions and SHA-256 hashes identify each report and trajectory. The issue and
+PR records link the completed CI run used for qualification. Issue #4 must
+remain open until these gates pass; passing unit tests alone is insufficient.

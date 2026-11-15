@@ -4,7 +4,8 @@
 """Experimental force-level Coulomb contact with core-owned stick/slip events.
 `capture_speed` is a numerical event tolerance, not a viscous creep parameter.
 The initial hybrid implementation requires one isolated sphere/box-face,
-capsule-end/box-face or sphere/sphere contact. Its full qualification is pending.
+capsule-end/box-face or sphere/sphere contact. Qualification requires the expanded
+short/long physical matrix and matching-source Linux/macOS comparison.
 """
 struct CoulombContact <: CL.AbstractHybridContactModel
     geometry::PrimitiveContact
